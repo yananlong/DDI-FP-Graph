@@ -10,7 +10,7 @@ import torch
 import torch.multiprocessing
 import torch_geometric.nn as pyg_nn
 from fp_data import FPGraphDataModule
-from models import FPGraphModel, GraphModel
+from models import FPGraphModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -50,7 +50,7 @@ def main():
         "tags": [GNN.__name__, "Morgan", "concat_final", "full_run"],
         "description": "Morgan {} ({}), full run".format(GNN.__name__, NLAYERS),
         "name": "Morgan_{}_{}".format(GNN.__name__, NLAYERS),
-        "source_files": ["src/main_Graph.py", "src/models.py"],
+        "source_files": ["src/main_FPGraph.py", "src/models.py"],
     }
     model_params = {
         "act": "leakyrelu",
@@ -86,7 +86,7 @@ def main():
     neptune_logger = NeptuneLogger(run=run)
 
     # Model
-    model = GraphModel(**model_params)
+    model = FPGraphModel(**model_params)
 
     # Trainer
     model_checkpoint = ModelCheckpoint(**model_checkpoint_params)
