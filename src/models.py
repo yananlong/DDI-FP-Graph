@@ -381,7 +381,6 @@ class GraphModel(LightningModule):
         dec_nlayers,
         dec_hid,
         out_dim,
-        use_custom_MLP=False,
         final_concat=False,
         dropout=0.5,
         top_k=5,
@@ -407,23 +406,14 @@ class GraphModel(LightningModule):
 
         # Layers
         # Fingerprint encoder and global decoder
-        if not use_custom_MLP:
-            self.dec = pyg_nn.MLP(
-                in_channels=self.dec_in_fac * gnn_nlayers * gnn_hid,
-                hidden_channels=dec_hid,
-                out_channels=out_dim,
-                num_layers=dec_nlayers,
-                dropout=dropout,
-                act=act,
-            )
-        else:
-            self.dec = nn.Sequential(
-                nn.Linear(self.dec_in_fac * gnn_nlayers * gnn_hid, dec_hid),
-                nn.ReLU(),
-                nn.Linear(dec_hid, dec_hid),
-                nn.ReLU(),
-                nn.Linear(dec_hid, out_dim),
-            )
+        self.dec = pyg_nn.MLP(
+            in_channels=self.dec_in_fac * gnn_nlayers * gnn_hid,
+            hidden_channels=dec_hid,
+            out_channels=out_dim,
+            num_layers=dec_nlayers,
+            dropout=dropout,
+            act=act,
+        )
 
         # Atom encoder
         self.atom_enc = nn.Linear(gnn_in, gnn_hid)
@@ -645,7 +635,6 @@ class FPGraphModel(LightningModule):
         dec_nlayers,
         dec_hid,
         out_dim,
-        use_custom_MLP=False,
         final_concat=False,
         dropout=0.5,
         top_k=5,
@@ -671,38 +660,23 @@ class FPGraphModel(LightningModule):
 
         # Layers
         # Fingerprint encoder and global decoder
-        if not use_custom_MLP:
-            self.fp_enc = pyg_nn.MLP(
-                in_channels=fp_in,
-                hidden_channels=fp_hid,
-                out_channels=fp_hid,
-                num_layers=fp_nlayers,
-                dropout=dropout,
-                act=act,
-            )
-            self.dec = pyg_nn.MLP(
-                in_channels=self.dec_in_fac * (fp_hid + gnn_nlayers * gnn_hid),
-                hidden_channels=dec_hid,
-                out_channels=out_dim,
-                num_layers=dec_nlayers,
-                dropout=dropout,
-                act=act,
-            )
-        else:
-            self.fp_enc = nn.Sequential(
-                nn.Linear(fp_in, fp_hid),
-                nn.ReLU(),
-                nn.Linear(fp_hid, fp_hid),
-                nn.ReLU(),
-                nn.Linear(fp_hid, fp_hid),
-            )
-            self.dec = nn.Sequential(
-                nn.Linear(self.dec_in_fac * (fp_hid + gnn_nlayers * gnn_hid), dec_hid),
-                nn.ReLU(),
-                nn.Linear(dec_hid, dec_hid),
-                nn.ReLU(),
-                nn.Linear(dec_hid, out_dim),
-            )
+        self.fp_enc = pyg_nn.MLP(
+            in_channels=fp_in,
+            hidden_channels=fp_hid,
+            out_channels=fp_hid,
+            num_layers=fp_nlayers,
+            dropout=dropout,
+            act=act,
+        )
+        self.dec = pyg_nn.MLP(
+            in_channels=self.dec_in_fac * (fp_hid + gnn_nlayers * gnn_hid),
+            hidden_channels=dec_hid,
+            out_channels=out_dim,
+            num_layers=dec_nlayers,
+            dropout=dropout,
+            act=act,
+        )
+
         # Atom encoder
         self.atom_enc = nn.Linear(gnn_in, gnn_hid)
 

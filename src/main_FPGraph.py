@@ -10,7 +10,7 @@ import torch
 import torch.multiprocessing
 import torch_geometric.nn as pyg_nn
 from fp_data import FPGraphDataModule
-from models import GraphModel
+from models import FPGraphModel, GraphModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -29,7 +29,7 @@ NGPUS = 1
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
-GNN = pyg_nn.GINEConv
+GNN = pyg_nn.GCNConv
 
 
 def main():
@@ -47,19 +47,22 @@ def main():
     # Hyperparameters
     neptune_params = {
         "project": "yananlong/DDIFPGraph",
-        "tags": [GNN.__name__, "concat_final", "full_run"],
-        "description": "{} (4), full run".format(GNN.__name__),
-        "name": "{}_4".format(GNN.__name__),
+        "tags": [GNN.__name__, "Morgan", "concat_final", "full_run"],
+        "description": "Morgan {} ({}), full run".format(GNN.__name__, NLAYERS),
+        "name": "Morgan_{}_{}".format(GNN.__name__, NLAYERS),
         "source_files": ["src/main_Graph.py", "src/models.py"],
     }
     model_params = {
         "act": "leakyrelu",
+        "fp_nlayers": NLAYERS,
+        "fp_in": dm.ndim,
+        "fp_hid": HID_DIM,
         "gnn_name": GNN,
+        "gnn_nlayers": NLAYERS,
         "gnn_in": 9,  # num input atom features
-        "gnn_nlayers": 4,
         "gnn_hid": HID_DIM,
+        "dec_nlayers": NLAYERS,
         "dec_hid": HID_DIM,
-        "dec_nlayers": 4,
         "out_dim": dm.num_classes,
         "final_concat": True,
         "batch_size": BATCH_SIZE,
@@ -72,8 +75,8 @@ def main():
         "mode": "min",
     }
     model_checkpoint_params = {
-        "dirpath": osp.join(BASEDIR, "ckpts/", "GNN"),
-        "filename": "{}".format(GNN.__name__) + "-{epoch:02d}-{val_loss:.3f}",
+        "dirpath": osp.join(BASEDIR, "ckpts/", "FPGNN"),
+        "filename": "Morgan-{}".format(GNN.__name__) + "-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
