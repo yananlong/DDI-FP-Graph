@@ -464,10 +464,9 @@ class GraphModel(LightningModule):
             if self.layer_name in ["GATConv", "GATv2Conv", "GINEConv"]:
                 x1 = F.relu(layer(x1, edge_index1, edge_attr1.float()))
                 x2 = F.relu(layer(x2, edge_index2, edge_attr2.float()))
-            # Use edge weight
+            # TODO: Use edge weights
             elif self.layer_name in ["GraphConv", "GatedGraphConv"]:
-                x1 = F.relu(layer(x1, edge_index1, edge_attr1.float()))
-                x2 = F.relu(layer(x2, edge_index2, edge_attr2.float()))
+                raise NotImplementedError("Using edge weights is currently unsupported")
             else:
                 x1 = F.relu(layer(x1, edge_index1))
                 x2 = F.relu(layer(x2, edge_index2))
@@ -732,7 +731,6 @@ class FPGraphModel(LightningModule):
         fp_embed2 = self.fp_enc(fp2)
 
         # Atom/node features
-        # TODO: initial atom features okay as floats?
         x1 = self.atom_enc(x1.float())
         x2 = self.atom_enc(x2.float())
 
@@ -744,10 +742,9 @@ class FPGraphModel(LightningModule):
             if self.layer_name in ["GATConv", "GATv2Conv", "GINEConv"]:
                 x1 = F.relu(layer(x1, edge_index1, edge_attr1.float()))
                 x2 = F.relu(layer(x2, edge_index2, edge_attr2.float()))
-            # Use edge weight
-            elif self.layer_name in ["GCNConv", "GraphConv", "GatedGraphConv"]:
-                x1 = F.relu(layer(x1, edge_index1, edge_attr1.float()))
-                x2 = F.relu(layer(x2, edge_index2, edge_attr2.float()))
+            # TODO: Use edge weights
+            elif self.layer_name in ["GraphConv", "GatedGraphConv"]:
+                raise NotImplementedError("Using edge weights is currently unsupported")
             else:
                 x1 = F.relu(layer(x1, edge_index1))
                 x2 = F.relu(layer(x2, edge_index2))
