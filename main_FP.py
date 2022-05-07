@@ -22,11 +22,8 @@ torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-os.environ["PATH"] = (
-    "/scratch/midway3/ylong/apps/anaconda/envs/torch_1_10/bin/:" + os.environ["PATH"]
-)
 pl.seed_everything(2022, workers=True)
-BASEDIR = "/project/arzhetsky/ylong/DDI-FP-Graph/"
+BASEDIR = "."
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
