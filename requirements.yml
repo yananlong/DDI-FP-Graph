@@ -340,8 +340,6 @@ dependencies:
     - logmatic-python==0.1.7
     - omegaconf==2.1.2
     - opt-einsum==3.3.0
-    - pyro-api==0.1.2
-    - pyro-ppl==1.7.0
     - python-json-logger==2.0.2
     - reconplogger==4.10.1
     - ruyaml==0.91.0
