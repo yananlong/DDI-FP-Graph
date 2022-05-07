@@ -54,14 +54,14 @@ class FPGraphPairData(PyGData):
 
 class FPDataset(Dataset):
     r"""
-        Dataset for fingerprint data generated from SMILES.
+    Dataset for fingerprint data generated from SMILES.
 
-        Parameters
-        ----------
-            kind (str): Fingerprinting method: morgan or pharmacophores
-            data_dir (str): Base directory for input data
-            include_neg (bool): Use neegative examples from actual prescriptions in
-                addition to the positive examples from curated databases?
+    Parameters
+    ----------
+        kind (str): Fingerprinting method: morgan or pharmacophores
+        data_dir (str): Base directory for input data
+        include_neg (bool): Use neegative examples from actual prescriptions in
+            addition to the positive examples from curated databases?
     """
 
     def __init__(
@@ -218,14 +218,14 @@ class FPDataModule(LightningDataModule):
 
 class FPGraphDataset(InMemoryDataset):
     r"""
-        Dataset for fingerprint and graph data generated from SMILES.
+    Dataset for fingerprint and graph data generated from SMILES.
 
-        Parameters
-        ----------
-            kind (str): Fingerprinting method: morgan or pharmacophores
-            data_dir (str): Base directory for input data
-            include_neg (bool): Use neegative examples from actual prescriptions in
-                addition to the positive examples from curated databases?
+    Parameters
+    ----------
+        kind (str): Fingerprinting method: morgan or pharmacophores
+        data_dir (str): Base directory for input data
+        include_neg (bool): Use neegative examples from actual prescriptions in
+            addition to the positive examples from curated databases?
     """
 
     def __init__(
