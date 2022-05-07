@@ -8,7 +8,6 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
-import torch.nn.functional as F
 import torch_geometric.nn as pyg_nn
 from fp_data import FPDataModule
 from models import FPModel
@@ -16,7 +15,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import NeptuneLogger
-from torch import nn
 
 torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
@@ -24,7 +22,8 @@ torch.backends.cudnn.benchmark = False
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 pl.seed_everything(2022, workers=True)
 BASEDIR = "."
-AVAIL_GPUS = min(1, torch.cuda.device_count())
+AVAIL_GPUS = torch.cuda.device_count()
+NGPUS = 1
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
@@ -85,7 +84,7 @@ def main():
         default_root_dir=BASEDIR,
         logger=neptune_logger,
         # Config
-        gpus=AVAIL_GPUS,
+        gpus=NGPUS,
         auto_select_gpus=True,
         # Training
         max_epochs=20,
@@ -93,11 +92,6 @@ def main():
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,
         profiler="simple",
-        # Debugging
-        # num_sanity_val_steps=-1,
-        # limit_train_batches=0.1,
-        # limit_val_batches=0.1,
-        # limit_test_batches=1,
     )
 
     # Training

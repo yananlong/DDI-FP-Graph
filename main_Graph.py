@@ -8,7 +8,6 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
-import torch.nn.functional as F
 import torch_geometric.nn as pyg_nn
 from fp_data import FPGraphDataModule
 from models import GraphModel
@@ -16,7 +15,6 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import NeptuneLogger
-from torch import nn
 
 # https://github.com/pytorch/pytorch/issues/11201#issuecomment-421146936
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -26,11 +24,14 @@ torch.backends.cudnn.benchmark = False
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 pl.seed_everything(2022, workers=True)
 BASEDIR = "."
-AVAIL_GPUS = min(1, torch.cuda.device_count())
+AVAIL_GPUS = torch.cuda.device_count()
+NGPUS = 2
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
 GNN = pyg_nn.GINEConv
+GNN_NAME = GNN.__name__
+
 
 def main():
     # DataModule
@@ -39,7 +40,7 @@ def main():
         data_dir=osp.join(BASEDIR, "Data"),
         include_neg=True,
         batch_size=BATCH_SIZE,
-        num_workers=os.cpu_count(),
+        num_workers=int(os.cpu_count() // AVAIL_GPUS * NGPUS),
     )
     dm.setup()
 
@@ -49,10 +50,11 @@ def main():
         "tags": ["Morgan", "concat_final", "full_run"],
         "description": "Morgan (4), full run",
         "name": "Morgan_4",
+        "source_files": ["main_Graph.py", "src/models.py"],
     }
     model_params = {
         "act": "leakyrelu",
-        "gnn_name": GNN,
+        "gnn_name": GNN_NAME,
         "gnn_in": 9,  # num input atom features
         "gnn_hid": HID_DIM,
         "dec_hid": HID_DIM,
@@ -70,8 +72,8 @@ def main():
         "mode": "min",
     }
     model_checkpoint_params = {
-        "dirpath": osp.join(BASEDIR, "ckpts/", GNN),
-        "filename": "Morgan-{epoch:02d}-{val_loss:.3f}",
+        "dirpath": osp.join(BASEDIR, "ckpts/", "GNN"),
+        "filename": "{}".format(GNN_NAME) + "-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
@@ -90,7 +92,7 @@ def main():
         default_root_dir=BASEDIR,
         logger=neptune_logger,
         # Config
-        gpus=AVAIL_GPUS,
+        gpus=NGPUS,
         auto_select_gpus=True,
         # Training
         max_epochs=20,
@@ -98,11 +100,6 @@ def main():
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,
         profiler="simple",
-        # Debugging
-        # num_sanity_val_steps=-1,
-        # limit_train_batches=0.1,
-        # limit_val_batches=0.1,
-        # limit_test_batches=1,
     )
 
     # Training
