@@ -25,12 +25,11 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 pl.seed_everything(2022, workers=True)
 BASEDIR = "."
 AVAIL_GPUS = torch.cuda.device_count()
-NGPUS = 2
+NGPUS = 1
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
 GNN = pyg_nn.GINEConv
-GNN_NAME = GNN.__name__
 
 
 def main():
@@ -51,17 +50,17 @@ def main():
         "tags": ["Morgan", "concat_final", "full_run"],
         "description": "Morgan (4), full run",
         "name": "Morgan_4",
-        "source_files": ["main_Graph.py", "src/models.py"],
+        "source_files": ["src/main_Graph.py", "src/models.py"],
     }
     model_params = {
         "act": "leakyrelu",
-        "gnn_name": GNN_NAME,
+        "gnn_name": GNN,
         "gnn_in": 9,  # num input atom features
         "gnn_hid": HID_DIM,
         "dec_hid": HID_DIM,
         "gnn_nlayers": 4,
         "dec_nlayers": 4,
-        "out_dim": dm_graph.num_classes,
+        "out_dim": dm.num_classes,
         "final_concat": True,
         "batch_size": BATCH_SIZE,
     }
@@ -74,7 +73,7 @@ def main():
     }
     model_checkpoint_params = {
         "dirpath": osp.join(BASEDIR, "ckpts/", "GNN"),
-        "filename": "{}".format(GNN_NAME) + "-{epoch:02d}-{val_loss:.3f}",
+        "filename": "{}".format(GNN.__name__) + "-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
