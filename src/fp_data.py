@@ -54,14 +54,14 @@ class FPGraphPairData(PyGData):
 
 class FPDataset(Dataset):
     r"""
-    Dataset for fingerprint data generated from SMILES.
+        Dataset for fingerprint data generated from SMILES.
 
-    Parameters
-    ----------
-        kind (str): Fingerprinting method: morgan or pharmacophores
-        data_dir (str): Base directory for input data
-        include_neg (bool): Use neegative examples from actual prescriptions in
-            addition to the positive examples from curated databases?
+        Parameters
+        ----------
+            kind (str): Fingerprinting method: morgan or pharmacophores
+            data_dir (str): Base directory for input data
+            include_neg (bool): Use neegative examples from actual prescriptions in
+                addition to the positive examples from curated databases?
     """
 
     def __init__(
@@ -144,13 +144,19 @@ class FPDataModule(LightningDataModule):
         kind: str,
         data_dir: str,
         include_neg: bool = False,
+        train_prop=0.8,
+        val_prop=0.5,
         batch_size: int = 256,
+        num_workers: int = cpu_count(),
     ):
         super().__init__()
+        self.kind = kind
         self.data_dir = data_dir
         self.include_neg = include_neg
-        self.kind = kind
+        self.train_prop = train_prop
+        self.val_prop = val_prop
         self.batch_size = batch_size
+        self.num_workers = num_workers
 
     def prepare_data(self):
         pass
@@ -164,9 +170,9 @@ class FPDataModule(LightningDataModule):
         self.nsamples = len(ds_full)
 
         # Train/val/test split
-        self.ntrain = np.int32(self.nsamples * 0.8)
+        self.ntrain = np.int32(self.nsamples * self.train_prop)
         self.nval_test = self.nsamples - self.ntrain
-        self.nval = np.int32(self.nval_test * 0.5)
+        self.nval = np.int32(self.nval_test * self.val_prop)
         self.ntest = self.nval_test - self.nval
         self.train, self.val, self.test = random_split(
             ds_full,
@@ -184,7 +190,7 @@ class FPDataModule(LightningDataModule):
             self.train,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -193,7 +199,7 @@ class FPDataModule(LightningDataModule):
             self.val,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -202,21 +208,21 @@ class FPDataModule(LightningDataModule):
             self.test,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
 
 class FPGraphDataset(InMemoryDataset):
     r"""
-    Dataset for fingerprint and graph data generated from SMILES.
+        Dataset for fingerprint and graph data generated from SMILES.
 
-    Parameters
-    ----------
-        kind (str): Fingerprinting method: morgan or pharmacophores
-        data_dir (str): Base directory for input data
-        include_neg (bool): Use neegative examples from actual prescriptions in
-            addition to the positive examples from curated databases?
+        Parameters
+        ----------
+            kind (str): Fingerprinting method: morgan or pharmacophores
+            data_dir (str): Base directory for input data
+            include_neg (bool): Use neegative examples from actual prescriptions in
+                addition to the positive examples from curated databases?
     """
 
     def __init__(
@@ -352,6 +358,7 @@ class FPGraphDataModule(LightningDataModule):
         train_prop=0.8,
         val_prop=0.5,
         batch_size: int = 256,
+        num_workers: int = cpu_count(),
     ):
         super().__init__()
         self.root = root
@@ -361,6 +368,7 @@ class FPGraphDataModule(LightningDataModule):
         self.train_prop = train_prop
         self.val_prop = val_prop
         self.batch_size = batch_size
+        self.num_workers = num_workers
 
     def prepare_data(self):
         pass
@@ -406,7 +414,7 @@ class FPGraphDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=True,
             follow_batch=self.follow_batch,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -416,7 +424,7 @@ class FPGraphDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             follow_batch=self.follow_batch,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -426,6 +434,6 @@ class FPGraphDataModule(LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             follow_batch=self.follow_batch,
-            num_workers=cpu_count(),
+            num_workers=self.num_workers,
             pin_memory=True,
         )
