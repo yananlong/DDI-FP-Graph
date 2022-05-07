@@ -78,8 +78,8 @@ def main():
     }
 
     # Logger
-    # run = neptune.new.init(mode="debug", **neptune_params)
-    # neptune_logger = NeptuneLogger(run=run)
+    run = neptune.new.init(mode="async", **neptune_params)
+    neptune_logger = NeptuneLogger(run=run)
 
     # Model
     model = GraphModel(**model_params)
@@ -89,17 +89,16 @@ def main():
     trainer = Trainer(
         # I/O
         default_root_dir=BASEDIR,
-        # logger=neptune_logger,
+        logger=neptune_logger,
         # Config
         gpus=AVAIL_GPUS,
         auto_select_gpus=True,
-        # log_gpu_memory=True,
         # Training
         max_epochs=20,
         progress_bar_refresh_rate=50,
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,
-        # profiler="simple",
+        profiler="simple",
         # Debugging
         # num_sanity_val_steps=-1,
         # limit_train_batches=0.1,
@@ -110,8 +109,8 @@ def main():
     # Training
     trainer.fit(model, dm)
     trainer.test(model, dm)
-    # neptune_logger.log_model_summary(model=model, max_depth=-1)
-    # run.stop()
+    neptune_logger.log_model_summary(model=model, max_depth=-1)
+    run.stop()
 
 
 if __name__ == "__main__":
