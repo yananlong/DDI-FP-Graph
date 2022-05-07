@@ -84,7 +84,7 @@ class FPDataset(Dataset):
 
         # Load fingerprints
         with open(osp.join(data_dir, self.dict_in), mode="rb") as f:
-            print("Creating datase, kind:", kind, flush=True)
+            print("Creating dataset, kind:", kind, flush=True)
             self.fp_dict = pickle.load(f)
         self.ndim = next(iter(self.fp_dict.items()))[1].shape[0]  # input dimensions
         dbids_with_fps = list(self.fp_dict.keys())
@@ -177,7 +177,7 @@ class FPDataModule(LightningDataModule):
         self.train, self.val, self.test = random_split(
             ds_full,
             [self.ntrain, self.nval, self.ntest],
-            generator=torch.Generator().manual_seed(2022),
+            # generator=torch.Generator().manual_seed(2022),
         )
         print(
             "Total #samples {}, #train {}, #validation {}, #test {}".format(
@@ -192,6 +192,7 @@ class FPDataModule(LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )
 
     def val_dataloader(self):
@@ -201,6 +202,7 @@ class FPDataModule(LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )
 
     def test_dataloader(self):
@@ -210,6 +212,7 @@ class FPDataModule(LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )
 
 
@@ -396,7 +399,7 @@ class FPGraphDataModule(LightningDataModule):
         self.train, self.val, self.test = random_split(
             ds_full,
             [self.ntrain, self.nval, self.ntest],
-            generator=torch.Generator().manual_seed(2022),
+            # generator=torch.Generator().manual_seed(2022),
         )
         print(
             "Total #samples {}, #train {}, #validation {}, #test {}".format(
@@ -416,6 +419,7 @@ class FPGraphDataModule(LightningDataModule):
             follow_batch=self.follow_batch,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )
 
     def val_dataloader(self):
@@ -426,6 +430,7 @@ class FPGraphDataModule(LightningDataModule):
             follow_batch=self.follow_batch,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )
 
     def test_dataloader(self):
@@ -436,4 +441,5 @@ class FPGraphDataModule(LightningDataModule):
             follow_batch=self.follow_batch,
             num_workers=self.num_workers,
             pin_memory=True,
+            persistent_workers=True,
         )

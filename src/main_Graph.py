@@ -10,8 +10,8 @@ import torch
 import torch.multiprocessing
 import torch.nn.functional as F
 import torch_geometric.nn as pyg_nn
-from fp_data import FPDataModule
-from models import FPModel
+from fp_data import FPGraphDataModule
+from models import GraphModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -31,11 +31,11 @@ AVAIL_GPUS = min(1, torch.cuda.device_count())
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
-
+GNN = pyg_nn.GINEConv
 
 def main():
     # DataModule
-    dm = FPDataModule(
+    dm = FPGraphDataModule(
         kind="morgan",
         data_dir=osp.join(BASEDIR, "Data"),
         include_neg=True,
@@ -52,13 +52,16 @@ def main():
         "name": "Morgan_4",
     }
     model_params = {
-        "in_dim": dm.ndim,
-        "hid_dim": HID_DIM,
-        "out_dim": dm.num_classes,
-        "nlayers": NLAYERS,
         "act": "leakyrelu",
-        "concat": "final",
-        "batch_norm": True,
+        "gnn_name": GNN,
+        "gnn_in": 9,  # num input atom features
+        "gnn_hid": HID_DIM,
+        "dec_hid": HID_DIM,
+        "gnn_nlayers": 4,
+        "dec_nlayers": 4,
+        "out_dim": dm_graph.num_classes,
+        "final_concat": True,
+        "batch_size": BATCH_SIZE,
     }
     early_stopping_params = {
         "monitor": "val_loss",
@@ -68,18 +71,18 @@ def main():
         "mode": "min",
     }
     model_checkpoint_params = {
-        "dirpath": osp.join(BASEDIR, "ckpts/", "FP"),
-        "filename": "Morgan-{epoch:02d}-{val_loss:.3f}-{val_acc:.3f}",
+        "dirpath": osp.join(BASEDIR, "ckpts/", GNN),
+        "filename": "Morgan-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
 
     # Logger
-    # run = neptune.new.init(mode="offline", **neptune_params)
+    # run = neptune.new.init(mode="debug", **neptune_params)
     # neptune_logger = NeptuneLogger(run=run)
 
     # Model
-    model = FPModel(**model_params)
+    model = GraphModel(**model_params)
 
     # Trainer
     model_checkpoint = ModelCheckpoint(**model_checkpoint_params)

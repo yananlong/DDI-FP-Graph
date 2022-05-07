@@ -133,6 +133,112 @@ class TransformerEncoder(nn.Module):
         return attention_maps
 
 
+class _FPModel(LightningModule):
+    def __init__(
+        self,
+        in_dim,
+        hid_dim,
+        out_dim,
+        top_k: int = 5,
+    ):
+        super().__init__()
+
+        # Loss
+        self.loss_module = nn.CrossEntropyLoss()
+
+        # Metrics
+        self.accuracy = Accuracy(num_classes=out_dim)
+        self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
+        self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
+        self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
+        self.auroc = AUROC(num_classes=out_dim, average="weighted")
+
+        self.enc = nn.Sequential(
+            nn.Linear(in_dim, hid_dim),
+            nn.ReLU(),
+            nn.Linear(hid_dim, hid_dim),
+            nn.ReLU(),
+            nn.Linear(hid_dim, hid_dim),
+        )
+
+        self.dec = nn.Sequential(
+            nn.Linear(hid_dim, hid_dim),
+            nn.ReLU(),
+            nn.Linear(hid_dim, hid_dim),
+            nn.ReLU(),
+            nn.Linear(hid_dim, out_dim),
+        )
+
+    def forward(self, drug1, drug2):
+        d1 = self.enc(drug1)
+        d2 = self.enc(drug2)
+        d = d1 + d2
+        d = self.dec(d)
+        return d
+
+    def configure_optimizers(self):
+        optimizer = optim.RAdam(self.parameters(), lr=1e-3, weight_decay=0)
+
+        return optimizer
+
+    def training_step(self, batch, batch_idx):
+        d1, d2, y = batch
+        ypreds = self(d1, d2)
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
+
+        # Logging
+        self.log("train_acc", acc, on_step=False, on_epoch=True)
+        self.log("train_f1_macro", f1_m, on_step=False, on_epoch=True)
+        self.log("train_f1_weighted", f1_w, on_step=False, on_epoch=True)
+        self.log("train_loss", loss)
+
+        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+
+    def validation_step(self, batch, batch_idx):
+        d1, d2, y = batch
+        ypreds = self(d1, d2)
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
+
+        # Logging
+        self.log("val_acc", acc, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_f1_macro", f1_m, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_f1_weighted", f1_w, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True)
+
+        return acc, f1_m, f1_w, loss
+
+    def test_step(self, batch, batch_idx):
+        d1, d2, y = batch
+        ypreds = self(d1, d2)
+        ypreds_probs = ypreds.softmax(dim=-1)
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
+        auroc = self.auroc(ypreds_probs, y)
+
+        # Logging
+        self.log("test_acc", acc, prog_bar=True)
+        self.log("test_f1_macro", f1_m, prog_bar=True)
+        self.log("test_f1_weighted", f1_w, prog_bar=True)
+        self.log("test_auroc", auroc, prog_bar=True)
+        self.log("test_loss", loss, prog_bar=True)
+
+        return acc, f1_m, f1_w, auroc, loss
+
+
 class FPModel(LightningModule):
     def __init__(
         self,
@@ -201,7 +307,7 @@ class FPModel(LightningModule):
         return d
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=0)
+        optimizer = optim.RAdam(self.parameters(), lr=1e-3, weight_decay=0)
 
         return optimizer
 
@@ -395,7 +501,7 @@ class GraphModel(LightningModule):
         return out
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(self.parameters(), lr=1e-3, weight_decay=0)
+        optimizer = optim.RAdam(self.parameters(), lr=1e-3, weight_decay=0)
 
         return optimizer
 
