@@ -90,7 +90,6 @@ def main():
         progress_bar_refresh_rate=50,
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,
-        profiler="simple",
     )
 
     # Training

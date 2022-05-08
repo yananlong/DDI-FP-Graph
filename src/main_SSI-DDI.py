@@ -48,9 +48,9 @@ def main():
         "act": "leakyrelu",
         "in_dim": 9,  # num input atom features
         "hid_dim": HID_DIM,
-        "GAT_head_dim": 32,
-        "GAT_nheads": 2,
-        "GAT_nlayers": NLAYERS,
+        "GAT_head_dim": 64, # 32
+        "GAT_nheads": 4, # 2
+        "GAT_nlayers": NLAYERS, # 4
         "out_dim": dm.num_classes,
     }
     neptune_params = {
@@ -79,7 +79,7 @@ def main():
     }
 
     # Logger
-    run = neptune.new.init(mode="async", **neptune_params)
+    run = neptune.new.init(mode="offline", **neptune_params)
     neptune_logger = NeptuneLogger(run=run)
     neptune_logger.experiment["model/hyper-parameters"] = model_params
 
@@ -100,7 +100,6 @@ def main():
         progress_bar_refresh_rate=50,
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,
-        profiler="simple",
     )
 
     # Training
