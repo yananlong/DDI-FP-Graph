@@ -8,7 +8,6 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
-import torch_geometric.nn as pyg_nn
 from fp_data import FPGraphDataModule
 from models import GraphModel
 from pytorch_lightning import Trainer

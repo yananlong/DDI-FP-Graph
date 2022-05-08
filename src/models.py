@@ -1,242 +1,17 @@
 import math
 import sys
 
+import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch_geometric.nn as pyg_nn
-from pytorch_lightning import LightningDataModule, LightningModule
+from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from ssiddi import SSI_DDI
 from torch import nn
-from torch.utils.data import DataLoader, Dataset, random_split
-from torch_geometric.loader import DataLoader as PyGDataLoader
 from torchmetrics import AUROC, Accuracy, FBetaScore
-
-
-# https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/tutorial6/Transformers_and_MHAttention.html
-class MultiheadAttention(nn.Module):
-    def __init__(self, input_dim, embed_dim, num_heads):
-        super().__init__()
-        assert (
-            embed_dim % num_heads == 0
-        ), "Embedding dimension must be 0 modulo number of heads."
-
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-
-        # Stack all weight matrices 1...h together for efficiency
-        # Note that in many implementations you see "bias=False" which is optional
-        self.qkv_proj = nn.Linear(input_dim, 3 * embed_dim)
-        self.o_proj = nn.Linear(embed_dim, embed_dim)
-
-        self._reset_parameters()
-
-    def _reset_parameters(self):
-        # Original Transformer initialization, see PyTorch documentation
-        nn.init.xavier_uniform_(self.qkv_proj.weight)
-        nn.init.xavier_uniform_(self.o_proj.weight)
-        self.qkv_proj.bias.data.fill_(0)
-        self.o_proj.bias.data.fill_(0)
-
-    def scaled_dot_product(self, q, k, v, mask=None):
-        d_k = q.size()[-1]
-        # d_k = d_k.type_as(q)
-        attn_logits = torch.matmul(q, k.transpose(-2, -1))
-        attn_logits = attn_logits / math.sqrt(d_k)
-        if mask is not None:
-            attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
-        attention = F.softmax(attn_logits, dim=-1)
-        values = torch.matmul(attention, v)
-        return values, attention
-
-    def forward(self, x, mask=None, return_attention=False):
-        batch_size, seq_length, emb_dim = x.size()
-        qkv = self.qkv_proj(x)
-
-        # Separate Q, K, V from linear output
-        qkv = qkv.reshape(batch_size, seq_length, self.num_heads, 3 * self.head_dim)
-        qkv = qkv.permute(0, 2, 1, 3)  # [Batch, Head, SeqLen, Dims]
-        q, k, v = qkv.chunk(3, dim=-1)
-
-        # Determine value outputs
-        values, attention = self.scaled_dot_product(q, k, v, mask=mask)
-        values = values.permute(0, 2, 1, 3)  # [Batch, SeqLen, Head, Dims]
-        values = values.reshape(batch_size, seq_length, emb_dim)
-        o = self.o_proj(values)
-
-        if return_attention:
-            return o, attention
-        else:
-            return o
-
-
-class EncoderBlock(nn.Module):
-    def __init__(self, input_dim, num_heads, lin_dim, dropout=0):
-        super().__init__()
-
-        # Attention
-        self.self_attn = MultiheadAttention(input_dim, input_dim, num_heads)
-
-        # MLP
-        self.lin = nn.Sequential(
-            nn.Linear(input_dim, lin_dim),
-            nn.Dropout(dropout),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(lin_dim, input_dim),
-        )
-
-        # Layers to apply in between the main layers
-        self.norm1 = nn.LayerNorm(input_dim)
-        self.norm2 = nn.LayerNorm(input_dim)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, x, mask=None):
-        # Attention part
-        attn_out = self.self_attn(x, mask=mask)
-        x = x + self.dropout(attn_out)
-        x = self.norm1(x)
-
-        # MLP part
-        lin_out = self.lin(x)
-        x = x + self.dropout(lin_out)
-        x = self.norm2(x)
-
-        return x
-
-
-class TransformerEncoder(nn.Module):
-    def __init__(self, num_blocks, input_dim, num_heads, lin_dim, dropout=0):
-        super().__init__()
-        self.blocks = nn.ModuleList(
-            [
-                EncoderBlock(input_dim, num_heads, lin_dim, dropout=0)
-                for _ in range(num_blocks)
-            ]
-        )
-
-    def forward(self, x, mask=None):
-        for block in self.blocks:
-            x = block(x, mask=mask)
-
-        return x
-
-    def get_attention_maps(self, x, mask=None):
-        attention_maps = []
-        for block in self.blocks:
-            _, attn_map = block.self_attn(x, mask=mask, return_attention=True)
-            attention_maps.append(attn_map)
-            x = block(x)
-
-        return attention_maps
-
-
-class _FPModel(LightningModule):
-    def __init__(
-        self,
-        in_dim,
-        hid_dim,
-        out_dim,
-        top_k: int = 5,
-    ):
-        super().__init__()
-
-        # Loss
-        self.loss_module = nn.CrossEntropyLoss()
-
-        # Metrics
-        self.accuracy = Accuracy(num_classes=out_dim)
-        self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
-        self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
-        self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
-        self.auroc = AUROC(num_classes=out_dim, average="weighted")
-
-        self.enc = nn.Sequential(
-            nn.Linear(in_dim, hid_dim),
-            nn.ReLU(),
-            nn.Linear(hid_dim, hid_dim),
-            nn.ReLU(),
-            nn.Linear(hid_dim, hid_dim),
-        )
-
-        self.dec = nn.Sequential(
-            nn.Linear(hid_dim, hid_dim),
-            nn.ReLU(),
-            nn.Linear(hid_dim, hid_dim),
-            nn.ReLU(),
-            nn.Linear(hid_dim, out_dim),
-        )
-
-    def forward(self, drug1, drug2):
-        d1 = self.enc(drug1)
-        d2 = self.enc(drug2)
-        d = d1 + d2
-        d = self.dec(d)
-        return d
-
-    def configure_optimizers(self):
-        optimizer = optim.RAdam(self.parameters(), lr=1e-3, weight_decay=0)
-
-        return optimizer
-
-    def training_step(self, batch, batch_idx):
-        d1, d2, y = batch
-        ypreds = self(d1, d2)
-
-        # Metrics
-        loss = self.loss_module(ypreds, y)
-        acc = self.accuracy(ypreds, y)
-        f1_m = self.f1_macro(ypreds, y)
-        f1_w = self.f1_weighted(ypreds, y)
-
-        # Logging
-        self.log("train_acc", acc, on_step=False, on_epoch=True)
-        self.log("train_f1_macro", f1_m, on_step=False, on_epoch=True)
-        self.log("train_f1_weighted", f1_w, on_step=False, on_epoch=True)
-        self.log("train_loss", loss)
-
-        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
-
-    def validation_step(self, batch, batch_idx):
-        d1, d2, y = batch
-        ypreds = self(d1, d2)
-
-        # Metrics
-        loss = self.loss_module(ypreds, y)
-        acc = self.accuracy(ypreds, y)
-        f1_m = self.f1_macro(ypreds, y)
-        f1_w = self.f1_weighted(ypreds, y)
-
-        # Logging
-        self.log("val_acc", acc, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_f1_macro", f1_m, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_f1_weighted", f1_w, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("val_loss", loss, prog_bar=True)
-
-        return acc, f1_m, f1_w, loss
-
-    def test_step(self, batch, batch_idx):
-        d1, d2, y = batch
-        ypreds = self(d1, d2)
-        ypreds_probs = ypreds.softmax(dim=-1)
-
-        # Metrics
-        loss = self.loss_module(ypreds, y)
-        acc = self.accuracy(ypreds, y)
-        f1_m = self.f1_macro(ypreds, y)
-        f1_w = self.f1_weighted(ypreds, y)
-        auroc = self.auroc(ypreds_probs, y)
-
-        # Logging
-        self.log("test_acc", acc, prog_bar=True)
-        self.log("test_f1_macro", f1_m, prog_bar=True)
-        self.log("test_f1_weighted", f1_w, prog_bar=True)
-        self.log("test_auroc", auroc, prog_bar=True)
-        self.log("test_loss", loss, prog_bar=True)
-
-        return acc, f1_m, f1_w, auroc, loss
 
 
 class FPModel(LightningModule):
@@ -384,7 +159,6 @@ class GraphModel(LightningModule):
         final_concat=False,
         dropout=0.5,
         top_k=5,
-        **kwargs,
     ):
         super().__init__()
         self.batch_size = batch_size
@@ -405,7 +179,7 @@ class GraphModel(LightningModule):
         self.auroc = AUROC(num_classes=out_dim, average="weighted")
 
         # Layers
-        # Fingerprint encoder and global decoder
+        # Global decoder
         self.dec = pyg_nn.MLP(
             in_channels=self.dec_in_fac * gnn_nlayers * gnn_hid,
             hidden_channels=dec_hid,
@@ -504,7 +278,6 @@ class GraphModel(LightningModule):
         acc = self.accuracy(ypreds, y)
         f1_m = self.f1_macro(ypreds, y)
         f1_w = self.f1_weighted(ypreds, y)
-        # auroc = self.auroc(ypreds, y)
 
         # Logging
         self.log(
@@ -538,7 +311,6 @@ class GraphModel(LightningModule):
         acc = self.accuracy(ypreds, y)
         f1_m = self.f1_macro(ypreds, y)
         f1_w = self.f1_weighted(ypreds, y)
-        # auroc = self.auroc(ypreds, y)
 
         # Logging
         self.log(
@@ -637,7 +409,6 @@ class FPGraphModel(LightningModule):
         final_concat=False,
         dropout=0.5,
         top_k=5,
-        **kwargs,
     ):
         super().__init__()
         self.batch_size = batch_size
@@ -783,7 +554,6 @@ class FPGraphModel(LightningModule):
         acc = self.accuracy(ypreds, y)
         f1_m = self.f1_macro(ypreds, y)
         f1_w = self.f1_weighted(ypreds, y)
-        # auroc = self.auroc(ypreds, y)
 
         # Logging
         self.log(
@@ -817,7 +587,187 @@ class FPGraphModel(LightningModule):
         acc = self.accuracy(ypreds, y)
         f1_m = self.f1_macro(ypreds, y)
         f1_w = self.f1_weighted(ypreds, y)
-        # auroc = self.auroc(ypreds, y)
+
+        # Logging
+        self.log(
+            "val_acc",
+            acc,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "val_f1_macro",
+            f1_m,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "val_f1_weighted",
+            f1_w,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log("val_loss", loss, prog_bar=True)
+
+        return acc, f1_m, f1_w, loss
+
+    def test_step(self, batch, batch_idx):
+        # Forward pass
+        ypreds = self(batch)
+        y = batch.y
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
+        auroc = self.auroc(ypreds, y)
+
+        # Logging
+        self.log(
+            "test_acc",
+            acc,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "test_f1_macro",
+            f1_m,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "test_f1_weighted",
+            f1_w,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "test_auroc",
+            auroc,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=self.batch_size,
+        )
+        self.log("test_loss", loss, prog_bar=True, batch_size=self.batch_size)
+
+        return acc, f1_m, f1_w, auroc, loss
+
+
+class SSIDDIModel(LightningModule):
+    def __init__(
+        self,
+        batch_size,
+        act,
+        in_dim,
+        hid_dim,
+        GAT_head_dim,
+        GAT_nheads,
+        GAT_nlayers,
+        out_dim,
+        top_k=5,
+    ):
+        super().__init__()
+        self.batch_size = batch_size
+        self.in_dim = in_dim
+        self.hid_dim = hid_dim
+        self.GAT_head_dim = GAT_head_dim
+        self.GAT_nheads = GAT_nheads
+        self.GAT_nlayers = GAT_nlayers
+        self.out_dim = out_dim
+
+        # Prepare arguments
+        self.att_dim = self.GAT_head_dim * self.GAT_nheads
+        self.heads_out_feat_params = np.repeat(
+            self.GAT_head_dim, self.GAT_nlayers
+        ).tolist()
+        self.blocks_params = np.repeat(self.GAT_nheads, self.GAT_nlayers).tolist()
+
+        # Loss
+        self.loss_module = nn.CrossEntropyLoss()
+
+        # Metrics
+        self.accuracy = Accuracy(num_classes=out_dim)
+        self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
+        self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
+        self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
+        self.auroc = AUROC(num_classes=out_dim, average="weighted")
+
+        # SSI-DDI layer
+        self.ssi_ddi = SSI_DDI(
+            act,
+            self.in_dim,
+            self.hid_dim,
+            self.att_dim,
+            self.out_dim,
+            self.heads_out_feat_params,
+            self.blocks_params,
+        )
+
+    def forward(self, batch):
+        return self.ssi_ddi(batch)
+
+    def configure_optimizers(self):
+        optimizer = optim.RAdam(self.parameters(), lr=1e-3, weight_decay=0)
+
+        return optimizer
+
+    def training_step(self, batch, batch_idx):
+        # Forward pass
+        ypreds = self(batch)
+        y = batch.y
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
+
+        # Logging
+        self.log(
+            "train_acc", acc, on_step=False, on_epoch=True, batch_size=self.batch_size
+        )
+        self.log(
+            "train_f1_macro",
+            f1_m,
+            on_step=False,
+            on_epoch=True,
+            batch_size=self.batch_size,
+        )
+        self.log(
+            "train_f1_weighted",
+            f1_w,
+            on_step=False,
+            on_epoch=True,
+            batch_size=self.batch_size,
+        )
+        self.log("train_loss", loss)
+
+        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+
+    def validation_step(self, batch, batch_idx):
+        # Forward pass
+        ypreds = self(batch)
+        y = batch.y
+
+        # Metrics
+        loss = self.loss_module(ypreds, y)
+        acc = self.accuracy(ypreds, y)
+        f1_m = self.f1_macro(ypreds, y)
+        f1_w = self.f1_weighted(ypreds, y)
 
         # Logging
         self.log(

@@ -8,13 +8,15 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
-from fp_data import FPDataModule
-from models import FPModel
+from fp_data import FPGraphDataModule
+from models import FPGraphModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import NeptuneLogger
 
+# https://github.com/pytorch/pytorch/issues/11201#issuecomment-421146936
+torch.multiprocessing.set_sharing_strategy("file_system")
 torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
 
@@ -30,30 +32,37 @@ NLAYERS = 4
 
 def main():
     # DataModule
-    dm = FPDataModule(
+    dm = FPGraphDataModule(
         kind="morgan",
+        root=osp.join(BASEDIR, "Data"),
         data_dir=osp.join(BASEDIR, "Data"),
         include_neg=True,
         batch_size=BATCH_SIZE,
-        num_workers=os.cpu_count(),
+        num_workers=int(os.cpu_count() // AVAIL_GPUS * NGPUS),
     )
     dm.setup()
 
     # Hyperparameters
+    model_params = {
+        "batch_size": BATCH_SIZE,
+        "act": "leakyrelu",
+        "in_dim": 9,  # num input atom features
+        "hid_dim": HID_DIM,
+        "GAT_head_dim": 32,
+        "GAT_nheads": 2,
+        "GAT_nlayers": NLAYERS,
+        "out_dim": dm.num_classes,
+    }
     neptune_params = {
         "project": "yananlong/DDIFPGraph",
-        "tags": ["Morgan", "concat_final", "full_run"],
-        "description": "Morgan (4), full run",
-        "name": "Morgan_4",
-    }
-    model_params = {
-        "in_dim": dm.ndim,
-        "hid_dim": HID_DIM,
-        "out_dim": dm.num_classes,
-        "nlayers": NLAYERS,
-        "act": "leakyrelu",
-        "concat": "final",
-        "batch_norm": True,
+        "tags": ["SSIDDI", "full_run"],
+        "description": "SSIDDI: {} GAT layers, {} * {}, full run".format(
+            NLAYERS, model_params["GAT_head_dim"], model_params["GAT_nheads"]
+        ),
+        "name": "SSI-DDI_{}_{}".format(
+            NLAYERS, model_params["GAT_head_dim"], model_params["GAT_nheads"]
+        ),
+        "source_files": ["src/main_GraphAttn.py", "src/models.py", "src/ssiddi.py"],
     }
     early_stopping_params = {
         "monitor": "val_loss",
@@ -63,8 +72,8 @@ def main():
         "mode": "min",
     }
     model_checkpoint_params = {
-        "dirpath": osp.join(BASEDIR, "ckpts/", "FP"),
-        "filename": "Morgan-{epoch:02d}-{val_loss:.3f}-{val_acc:.3f}",
+        "dirpath": osp.join(BASEDIR, "ckpts/", "SSIDDI"),
+        "filename": "SSIDDI-{}".format(GNN.__name__) + "-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
@@ -72,9 +81,10 @@ def main():
     # Logger
     run = neptune.new.init(mode="async", **neptune_params)
     neptune_logger = NeptuneLogger(run=run)
+    neptune_logger.experiment["model/hyper-parameters"] = model_params
 
     # Model
-    model = FPModel(**model_params)
+    model = FPGraphModel(**model_params)
 
     # Trainer
     model_checkpoint = ModelCheckpoint(**model_checkpoint_params)
@@ -86,7 +96,7 @@ def main():
         gpus=NGPUS,
         auto_select_gpus=True,
         # Training
-        max_epochs=20,
+        max_epochs=50,
         progress_bar_refresh_rate=50,
         callbacks=[EarlyStopping(**early_stopping_params), model_checkpoint],
         stochastic_weight_avg=True,

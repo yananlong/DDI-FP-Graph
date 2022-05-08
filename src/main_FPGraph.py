@@ -8,7 +8,6 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
-import torch_geometric.nn as pyg_nn
 from fp_data import FPGraphDataModule
 from models import FPGraphModel
 from pytorch_lightning import Trainer
@@ -84,6 +83,7 @@ def main():
     # Logger
     run = neptune.new.init(mode="async", **neptune_params)
     neptune_logger = NeptuneLogger(run=run)
+    neptune_logger.experiment["model/hyper-parameters"] = model_params
 
     # Model
     model = FPGraphModel(**model_params)
