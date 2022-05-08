@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
 from fp_data import FPGraphDataModule
-from models import FPGraphModel
+from models import SSIDDIModel
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -55,8 +55,8 @@ def main():
     }
     neptune_params = {
         "project": "yananlong/DDIFPGraph",
-        "tags": ["SSIDDI", "full_run"],
-        "description": "SSIDDI: {} GAT layers, {} * {}, full run".format(
+        "tags": ["SSI-DDI", "full_run"],
+        "description": "SSI-DDI: {} GAT layers, {} * {}, full run".format(
             NLAYERS, model_params["GAT_head_dim"], model_params["GAT_nheads"]
         ),
         "name": "SSI-DDI_{}_{}".format(
@@ -72,8 +72,8 @@ def main():
         "mode": "min",
     }
     model_checkpoint_params = {
-        "dirpath": osp.join(BASEDIR, "ckpts/", "SSIDDI"),
-        "filename": "SSIDDI-{}".format(GNN.__name__) + "-{epoch:02d}-{val_loss:.3f}",
+        "dirpath": osp.join(BASEDIR, "ckpts/", "SSI-DDI"),
+        "filename": "SSI-DDI-{epoch:02d}-{val_loss:.3f}",
         "monitor": "val_loss",
         "save_top_k": 1,
     }
@@ -84,7 +84,7 @@ def main():
     neptune_logger.experiment["model/hyper-parameters"] = model_params
 
     # Model
-    model = FPGraphModel(**model_params)
+    model = SSIDDIModel(**model_params)
 
     # Trainer
     model_checkpoint = ModelCheckpoint(**model_checkpoint_params)
