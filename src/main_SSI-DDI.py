@@ -79,7 +79,7 @@ def main():
     }
 
     # Logger
-    run = neptune.new.init(mode="offline", **neptune_params)
+    run = neptune.new.init(mode="async", **neptune_params)
     neptune_logger = NeptuneLogger(run=run)
     neptune_logger.experiment["model/hyper-parameters"] = model_params
 

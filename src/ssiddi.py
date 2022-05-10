@@ -32,9 +32,7 @@ class SSI_DDI(nn.Module):
         for i, (head_out_feats, n_heads) in enumerate(
             zip(heads_out_feat_params, blocks_params)
         ):
-            block = SSI_DDI_Block(
-                n_heads, in_dim, head_out_feats, final_out_feats=self.hid_dim
-            )
+            block = SSI_DDI_Block(n_heads, in_dim, head_out_feats)
             self.add_module(f"block{i}", block)
             self.blocks.append(block)
             in_dim = head_out_feats * n_heads
@@ -47,8 +45,9 @@ class SSI_DDI(nn.Module):
         # Decoder
         self.dec = pyg_nn.MLP(
             in_channels=self.att_dim * self.n_blocks ** 2,
+            hidden_channels=self.hid_dim,
             out_channels=self.out_dim,
-            num_layers=1,
+            num_layers=4,
             act=act,
         )
 
@@ -97,7 +96,7 @@ class SSI_DDI(nn.Module):
 
 
 class SSI_DDI_Block(nn.Module):
-    def __init__(self, n_heads, in_dim, head_out_feats, final_out_feats):
+    def __init__(self, n_heads, in_dim, head_out_feats):
         super().__init__()
         self.n_heads = n_heads
         self.in_dim = in_dim
