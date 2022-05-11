@@ -210,10 +210,9 @@ class GraphModel(LightningModule):
                 [self.gnn_layer(nn=self.aux_nn, edge_dim=3) for _ in range(gnn_nlayers)]
             )
         elif self.layer_name in ["GATConv", "GATv2Conv"]:
-            GAT_hid = gnn_hid / attn_heads
             self.gnn_layers = nn.ModuleList(
                 [
-                    self.gnn_layer(gnn_hid, GAT_hid, attn_heads)
+                    self.gnn_layer(gnn_hid, gnn_hid / attn_heads, attn_heads)
                     for _ in range(gnn_nlayers)
                 ]
             )
