@@ -405,21 +405,21 @@ class GraphModel(LightningModule):
 class FPGraphModel(LightningModule):
     def __init__(
         self,
-        batch_size,
-        act,
-        fp_nlayers,
-        fp_in,
-        fp_hid,
-        gnn_name,
-        gnn_nlayers,
-        gnn_in,
-        gnn_hid,
-        dec_nlayers,
-        dec_hid,
-        out_dim,
-        final_concat=False,
-        dropout=0.5,
-        top_k=5,
+        batch_size: int,
+        act: str,
+        fp_nlayers: int,
+        fp_in: int,
+        fp_hid: int,
+        gnn_name: Callable,
+        gnn_nlayers: int,
+        gnn_in: int,
+        gnn_hid: int,
+        dec_nlayers: int,
+        dec_hid: int,
+        out_dim: int,
+        final_concat: bool = False,
+        dropout: int = 0.5,
+        top_k: int = 5,
     ):
         super().__init__()
         self.batch_size = batch_size
@@ -476,6 +476,15 @@ class FPGraphModel(LightningModule):
             )
             self.gnn_layers = nn.ModuleList(
                 [self.gnn_layer(nn=self.aux_nn, edge_dim=3) for _ in range(gnn_nlayers)]
+            )
+        elif self.layer_name in ["GATConv", "GATv2Conv"]:
+            self.gnn_layers = nn.ModuleList(
+                [
+                    self.gnn_layer(
+                        gnn_hid, int(gnn_hid / attn_heads), attn_heads, edge_dim=3
+                    )
+                    for _ in range(gnn_nlayers)
+                ]
             )
         else:
             self.gnn_layers = nn.ModuleList(

@@ -69,7 +69,7 @@ class SSI_DDI(nn.Module):
             batch.x2 = F.elu(self.net_norms[i](x2, batch.x2_batch))
 
         # Self-attention
-        # repr*: [batch * n_blocks * (head_dim * n_heads)]
+        # repr*: [batch * n_blocks * attn_dim]
         # atts: [batch * n_blocks * n_blocks]
         repr1 = torch.stack(repr1, dim=-2)
         repr2 = torch.stack(repr2, dim=-2)
@@ -101,7 +101,7 @@ class SSI_DDI_Block(nn.Module):
         self.n_heads = n_heads
         self.in_dim = in_dim
         self.out_features = head_out_feats
-        self.conv = pyg_nn.GATConv(in_dim, head_out_feats, n_heads)
+        self.conv = pyg_nn.GATv2Conv(in_dim, head_out_feats, n_heads)
         self.readout = pyg_nn.SAGPooling(n_heads * head_out_feats, min_score=-1)
 
     def forward(self, x, edge_index, batch_index):
