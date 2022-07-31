@@ -35,11 +35,22 @@ class FPModel(LightningModule):
         self.loss_module = nn.CrossEntropyLoss()
 
         # Metrics
+        # Train/val
         self.accuracy = Accuracy(num_classes=out_dim)
-        self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
+        # self.accuracy_class = Accuracy(num_classes=out_dim, average="none")
+        # self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
         self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
         self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
+        # self.f1_class = FBetaScore(num_classes=out_dim, beta=1.0, average="none")
         self.auroc = AUROC(num_classes=out_dim, average="weighted")
+
+        # Test
+        self.test_accuracy = Accuracy(num_classes=out_dim)
+        self.test_f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
+        self.test_f1_weighted = FBetaScore(
+            num_classes=out_dim, beta=1.0, average="weighted"
+        )
+        self.test_auroc = AUROC(num_classes=out_dim, average="weighted")
 
         # MLP
         if self.concat == "first":
@@ -130,19 +141,25 @@ class FPModel(LightningModule):
 
         # Metrics
         loss = self.loss_module(ypreds, y)
-        acc = self.accuracy(ypreds, y)
-        f1_m = self.f1_macro(ypreds, y)
-        f1_w = self.f1_weighted(ypreds, y)
-        auroc = self.auroc(ypreds_probs, y)
+        self.test_accuracy(ypreds, y)
+        self.test_f1_macro(ypreds, y)
+        self.test_f1_weighted(ypreds, y)
+        self.test_auroc(ypreds, y)
 
         # Logging
-        self.log("test_acc", acc, prog_bar=True)
-        self.log("test_f1_macro", f1_m, prog_bar=True)
-        self.log("test_f1_weighted", f1_w, prog_bar=True)
-        self.log("test_auroc", auroc, prog_bar=True)
+        self.log("test_acc", self.test_accuracy, prog_bar=True)
+        self.log("test_f1_macro", self.test_f1_macro, prog_bar=True)
+        self.log("test_f1_weighted", self.test_f1_weighted, prog_bar=True)
+        self.log("test_auroc", self.test_auroc, prog_bar=True)
         self.log("test_loss", loss, prog_bar=True)
 
-        return acc, f1_m, f1_w, auroc, loss
+        return loss
+
+    def predict_step(self, batch, batch_idx):
+        d1, d2, y = batch
+        ypreds = self(d1, d2)
+
+        return {"y": y, "ypreds": ypreds}
 
 
 class GraphModel(LightningModule):
@@ -720,11 +737,27 @@ class SSIDDIModel(LightningModule):
         self.loss_module = nn.CrossEntropyLoss()
 
         # Metrics
+        # self.accuracy = Accuracy(num_classes=out_dim)
+        # self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
+        # self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
+        # self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
+        # self.auroc = AUROC(num_classes=out_dim, average="weighted")
+        # Train/val
         self.accuracy = Accuracy(num_classes=out_dim)
-        self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
+        # self.accuracy_class = Accuracy(num_classes=out_dim, average="none")
+        # self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
         self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
         self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
+        # self.f1_class = FBetaScore(num_classes=out_dim, beta=1.0, average="none")
         self.auroc = AUROC(num_classes=out_dim, average="weighted")
+
+        # Test
+        self.test_accuracy = Accuracy(num_classes=out_dim)
+        self.test_f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
+        self.test_f1_weighted = FBetaScore(
+            num_classes=out_dim, beta=1.0, average="weighted"
+        )
+        self.test_auroc = AUROC(num_classes=out_dim, average="weighted")
 
         # SSI-DDI layer
         self.ssi_ddi = SSI_DDI(
@@ -823,46 +856,82 @@ class SSIDDIModel(LightningModule):
         ypreds = self(batch)
         y = batch.y
 
+        #         # Metrics
+        #         loss = self.loss_module(ypreds, y)
+        #         acc = self.accuracy(ypreds, y)
+        #         f1_m = self.f1_macro(ypreds, y)
+        #         f1_w = self.f1_weighted(ypreds, y)
+        #         auroc = self.auroc(ypreds, y)
+
+        #         # Logging
+        #         self.log(
+        #             "test_acc",
+        #             acc,
+        #             on_step=False,
+        #             on_epoch=True,
+        #             prog_bar=True,
+        #             batch_size=self.batch_size,
+        #         )
+        #         self.log(
+        #             "test_f1_macro",
+        #             f1_m,
+        #             on_step=False,
+        #             on_epoch=True,
+        #             prog_bar=True,
+        #             batch_size=self.batch_size,
+        #         )
+        #         self.log(
+        #             "test_f1_weighted",
+        #             f1_w,
+        #             on_step=False,
+        #             on_epoch=True,
+        #             prog_bar=True,
+        #             batch_size=self.batch_size,
+        #         )
+        #         self.log(
+        #             "test_auroc",
+        #             auroc,
+        #             on_step=False,
+        #             on_epoch=True,
+        #             prog_bar=True,
+        #             batch_size=self.batch_size,
+        #         )
+        #         self.log("test_loss", loss, prog_bar=True, batch_size=self.batch_size)
+
+        #         return acc, f1_m, f1_w, auroc, loss
         # Metrics
         loss = self.loss_module(ypreds, y)
-        acc = self.accuracy(ypreds, y)
-        f1_m = self.f1_macro(ypreds, y)
-        f1_w = self.f1_weighted(ypreds, y)
-        auroc = self.auroc(ypreds, y)
+        self.test_accuracy(ypreds, y)
+        self.test_f1_macro(ypreds, y)
+        self.test_f1_weighted(ypreds, y)
+        self.test_auroc(ypreds, y)
 
         # Logging
         self.log(
-            "test_acc",
-            acc,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=self.batch_size,
+            "test_acc", self.test_accuracy, prog_bar=True, batch_size=self.batch_size
         )
         self.log(
             "test_f1_macro",
-            f1_m,
-            on_step=False,
-            on_epoch=True,
+            self.test_f1_macro,
             prog_bar=True,
             batch_size=self.batch_size,
         )
         self.log(
             "test_f1_weighted",
-            f1_w,
-            on_step=False,
-            on_epoch=True,
+            self.test_f1_weighted,
             prog_bar=True,
             batch_size=self.batch_size,
         )
         self.log(
-            "test_auroc",
-            auroc,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=self.batch_size,
+            "test_auroc", self.test_auroc, prog_bar=True, batch_size=self.batch_size
         )
         self.log("test_loss", loss, prog_bar=True, batch_size=self.batch_size)
 
-        return acc, f1_m, f1_w, auroc, loss
+        return loss
+
+    def predict_step(self, batch, batch_idx):
+        # Forward pass
+        ypreds = self(batch)
+        y = batch.y
+
+        return {"y": y, "ypreds": ypreds}

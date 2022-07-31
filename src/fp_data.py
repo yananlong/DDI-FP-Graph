@@ -163,11 +163,11 @@ class FPDataModule(LightningDataModule):
 
     def setup(self, stage=None):
         # Create dataset
-        ds_full = FPDataset(self.kind, self.data_dir, self.include_neg)
-        self.num_classes = ds_full.num_classes
-        self.ndim = ds_full.ndim
+        self.ds_full = FPDataset(self.kind, self.data_dir, self.include_neg)
+        self.num_classes = self.ds_full.num_classes
+        self.ndim = self.ds_full.ndim
         self.dim = (self.ndim, self.num_classes)
-        self.nsamples = len(ds_full)
+        self.nsamples = len(self.ds_full)
 
         # Train/val/test split
         self.ntrain = np.int32(self.nsamples * self.train_prop)
@@ -175,7 +175,7 @@ class FPDataModule(LightningDataModule):
         self.nval = np.int32(self.nval_test * self.val_prop)
         self.ntest = self.nval_test - self.nval
         self.train, self.val, self.test = random_split(
-            ds_full,
+            self.ds_full,
             [self.ntrain, self.nval, self.ntest],
             # generator=torch.Generator().manual_seed(2022),
         )
@@ -208,6 +208,17 @@ class FPDataModule(LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.test,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=True,
+        )
+    
+    def predict_dataloader(self):
+        return DataLoader(
+            self.test,
+            # batch_size=len(self.test),
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
@@ -377,19 +388,19 @@ class FPGraphDataModule(LightningDataModule):
         pass
 
     def setup(self, stage=None):
-        ds_full = FPGraphDataset(
+        self.ds_full = FPGraphDataset(
             root=self.root,
             kind=self.kind,
             data_dir=self.data_dir,
             include_neg=self.include_neg,
         )
         try:
-            self.num_classes = max(ds_full.num_classes, ds_full.uniq_IDs)
+            self.num_classes = max(self.ds_full.num_classes, self.ds_full.uniq_IDs)
         except AttributeError:
-            self.num_classes = ds_full.num_classes
-        self.ndim = ds_full.ndim
+            self.num_classes = self.ds_full.num_classes
+        self.ndim = self.ds_full.ndim
         self.dim = (self.ndim, self.num_classes)
-        self.nsamples = len(ds_full)
+        self.nsamples = len(self.ds_full)
 
         # Train/val/test split
         self.ntrain = np.int32(self.nsamples * self.train_prop)
@@ -397,7 +408,7 @@ class FPGraphDataModule(LightningDataModule):
         self.nval = np.int32(self.nval_test * self.val_prop)
         self.ntest = self.nval_test - self.nval
         self.train, self.val, self.test = random_split(
-            ds_full,
+            self.ds_full,
             [self.ntrain, self.nval, self.ntest],
             # generator=torch.Generator().manual_seed(2022),
         )
@@ -437,6 +448,19 @@ class FPGraphDataModule(LightningDataModule):
         return PyGDataLoader(
             self.test,
             batch_size=self.batch_size,
+            # batch_size=len(self.test),
+            shuffle=False,
+            follow_batch=self.follow_batch,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            persistent_workers=True,
+        )
+    
+    def predict_dataloader(self):
+        return PyGDataLoader(
+            self.test,
+            batch_size=self.batch_size,
+            # batch_size=len(self.test),
             shuffle=False,
             follow_batch=self.follow_batch,
             num_workers=self.num_workers,
