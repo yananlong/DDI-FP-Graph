@@ -56,7 +56,6 @@ class FPModel(LightningModule):
         if self.concat == "first":
             in_dim = 2 * in_dim
         hid_dim_factor = 2 if self.concat == "last" else 1
-
         self.enc = pyg_nn.MLP(
             in_channels=in_dim,
             hidden_channels=hid_dim,
@@ -144,13 +143,13 @@ class FPModel(LightningModule):
         self.test_accuracy(ypreds, y)
         self.test_f1_macro(ypreds, y)
         self.test_f1_weighted(ypreds, y)
-        self.test_auroc(ypreds, y)
+        # self.test_auroc(ypreds, y)
 
         # Logging
         self.log("test_acc", self.test_accuracy, prog_bar=True)
         self.log("test_f1_macro", self.test_f1_macro, prog_bar=True)
         self.log("test_f1_weighted", self.test_f1_weighted, prog_bar=True)
-        self.log("test_auroc", self.test_auroc, prog_bar=True)
+        # self.log("test_auroc", self.test_auroc, prog_bar=True)
         self.log("test_loss", loss, prog_bar=True)
 
         return loss
@@ -737,11 +736,6 @@ class SSIDDIModel(LightningModule):
         self.loss_module = nn.CrossEntropyLoss()
 
         # Metrics
-        # self.accuracy = Accuracy(num_classes=out_dim)
-        # self.topkacc = Accuracy(num_classes=out_dim, top_k=top_k)
-        # self.f1_macro = FBetaScore(num_classes=out_dim, beta=1.0, average="macro")
-        # self.f1_weighted = FBetaScore(num_classes=out_dim, beta=1.0, average="weighted")
-        # self.auroc = AUROC(num_classes=out_dim, average="weighted")
         # Train/val
         self.accuracy = Accuracy(num_classes=out_dim)
         # self.accuracy_class = Accuracy(num_classes=out_dim, average="none")
@@ -856,55 +850,12 @@ class SSIDDIModel(LightningModule):
         ypreds = self(batch)
         y = batch.y
 
-        #         # Metrics
-        #         loss = self.loss_module(ypreds, y)
-        #         acc = self.accuracy(ypreds, y)
-        #         f1_m = self.f1_macro(ypreds, y)
-        #         f1_w = self.f1_weighted(ypreds, y)
-        #         auroc = self.auroc(ypreds, y)
-
-        #         # Logging
-        #         self.log(
-        #             "test_acc",
-        #             acc,
-        #             on_step=False,
-        #             on_epoch=True,
-        #             prog_bar=True,
-        #             batch_size=self.batch_size,
-        #         )
-        #         self.log(
-        #             "test_f1_macro",
-        #             f1_m,
-        #             on_step=False,
-        #             on_epoch=True,
-        #             prog_bar=True,
-        #             batch_size=self.batch_size,
-        #         )
-        #         self.log(
-        #             "test_f1_weighted",
-        #             f1_w,
-        #             on_step=False,
-        #             on_epoch=True,
-        #             prog_bar=True,
-        #             batch_size=self.batch_size,
-        #         )
-        #         self.log(
-        #             "test_auroc",
-        #             auroc,
-        #             on_step=False,
-        #             on_epoch=True,
-        #             prog_bar=True,
-        #             batch_size=self.batch_size,
-        #         )
-        #         self.log("test_loss", loss, prog_bar=True, batch_size=self.batch_size)
-
-        #         return acc, f1_m, f1_w, auroc, loss
         # Metrics
         loss = self.loss_module(ypreds, y)
         self.test_accuracy(ypreds, y)
         self.test_f1_macro(ypreds, y)
         self.test_f1_weighted(ypreds, y)
-        self.test_auroc(ypreds, y)
+        # self.test_auroc(ypreds, y)
 
         # Logging
         self.log(
@@ -922,9 +873,9 @@ class SSIDDIModel(LightningModule):
             prog_bar=True,
             batch_size=self.batch_size,
         )
-        self.log(
-            "test_auroc", self.test_auroc, prog_bar=True, batch_size=self.batch_size
-        )
+        # self.log(
+        #     "test_auroc", self.test_auroc, prog_bar=True, batch_size=self.batch_size
+        # )
         self.log("test_loss", loss, prog_bar=True, batch_size=self.batch_size)
 
         return loss

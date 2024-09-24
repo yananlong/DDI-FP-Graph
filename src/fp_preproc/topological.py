@@ -11,7 +11,7 @@ from rdkit.Chem import AllChem
 # Load file
 with open("/home/yananlong/DrugBank/dbid_smiles.json", mode="r") as f:
     # open("/home/yananlong/DDI/Data/db_smiles.pkl", mode="rb")
-    smiles_dictk = json.load(fp=f)
+    smiles_dict = json.load(fp=f)
 
 # Helper function
 def get_topological(SMILES, params):
@@ -25,7 +25,7 @@ def get_topological(SMILES, params):
 if __name__ == "__main__":
     params = {"minPath": 1, "maxPath": 7, "fpSize": 2048}
     out_dict = {}
-    for i, (dbid, smiles) in enumerate(smiles_dictk.items()):
+    for i, (dbid, smiles) in enumerate(smiles_dict.items()):
         try:
             fp_ar = get_topological(smiles, params)
         except Exception as e1:

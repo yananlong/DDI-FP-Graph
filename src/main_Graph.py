@@ -22,7 +22,7 @@ torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-pl.seed_everything(2022, workers=True)
+pl.seed_everything(2023, workers=True)
 BASEDIR = "."
 AVAIL_GPUS = torch.cuda.device_count()
 NGPUS = 1

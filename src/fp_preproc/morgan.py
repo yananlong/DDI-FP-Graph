@@ -9,8 +9,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, ChemicalFeatures
 
 # Load file
-with open("/home/yananlong/DDI/Data/db_smiles.pkl", mode="rb") as f1:
-    smiles_dict_pubchem = pickle.load(file=f1)
+# with open("/home/yananlong/DDI/Data/smiles_dict.pkl", mode="rb") as f1:
+#     smiles_dict_pubchem = pickle.load(file=f1)
 with open("/home/yananlong/DrugBank/dbid_smiles.json", mode="r") as f2:
     smiles_dict_drugbank = json.load(fp=f2)
 
@@ -24,7 +24,9 @@ def get_morgan(SMILES, params):
 
 # Get fingerprints
 if __name__ == "__main__":
-    params = {"radius": 2, "nBits": 2048, "useChirality": True}
+    radius = 4
+    nBits = 2048
+    params = {"radius": radius, "nBits": nBits, "useChirality": True}
     out_dict = {}
     for i, (dbid, smiles) in enumerate(smiles_dict_drugbank.items()):
         try:
@@ -33,8 +35,10 @@ if __name__ == "__main__":
             continue
         out_dict[dbid] = fp_ar
 
-        if i % 200 == 0:
+        if i % 1000 == 0:
             print("Molecule {}".format(i), flush=True)
 
-    with open("/home/yananlong/DDI/Data/morgan_dict_drugbank.pkl", mode="wb") as f:
+    with open(
+        f"/home/yananlong/DDI/Data/morgan{radius}-{nBits}_dict_drugbank.pkl", mode="wb"
+    ) as f:
         pickle.dump(out_dict, f)

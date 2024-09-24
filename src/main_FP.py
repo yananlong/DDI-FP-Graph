@@ -26,6 +26,12 @@ NGPUS = 1
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 4
+# DROPOUT = 0.5
+RADIUS = 2
+NBITS = 2048
+MODE = "inductive1"
+TRAIN_PROP = 0.8
+VAL_PROP = 0.5
 
 
 def main():
@@ -34,23 +40,29 @@ def main():
         kind="morgan",
         data_dir=osp.join(BASEDIR, "Data"),
         include_neg=True,
+        mode=MODE,
+        train_prop=TRAIN_PROP,
+        val_prop=VAL_PROP,
         batch_size=BATCH_SIZE,
-        num_workers=os.cpu_count(),
+        num_workers=1,
+        radius=RADIUS,
+        nBits=NBITS,
     )
     dm.setup()
 
     # Hyperparameters
     neptune_params = {
-        "project": "yananlong/DDIFPGraph",
-        "tags": ["Morgan", "concat_first", "full_run"],
-        "description": "Morgan (4), full run",
-        "name": "Morgan_4",
+        "project": "DDI/fingerprint",
+        "tags": ["Morgan", "concat_first", "full_run", MODE],
+        "description": f"Morgan{RADIUS}-{NBITS} ({NLAYERS:d}), full run",
+        "name": f"Morgan{RADIUS}-{NBITS}_{NLAYERS:d}",
     }
     model_params = {
         "in_dim": dm.ndim,
         "hid_dim": HID_DIM,
         "out_dim": dm.num_classes,
         "nlayers": NLAYERS,
+        # "dropout": DROPOUT,
         "act": "leakyrelu",
         "concat": "first",
         "batch_norm": True,
@@ -70,6 +82,7 @@ def main():
     }
 
     # Logger
+    # run = neptune.init_run(mode="async", **neptune_params)
     run = neptune.new.init(mode="async", **neptune_params)
     neptune_logger = NeptuneLogger(run=run)
 

@@ -21,13 +21,16 @@ torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
 
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-pl.seed_everything(2022, workers=True)
+pl.seed_everything(2023, workers=True)
 BASEDIR = "."
 AVAIL_GPUS = torch.cuda.device_count()
 NGPUS = 1
 BATCH_SIZE = 256 if AVAIL_GPUS else 64
 HID_DIM = 256
 NLAYERS = 5
+MODE = "inductive1"
+TRAIN_PROP = 0.8
+VAL_PROP = 1 / 9
 
 
 def main():
@@ -37,8 +40,14 @@ def main():
         root=osp.join(BASEDIR, "Data"),
         data_dir=osp.join(BASEDIR, "Data"),
         include_neg=True,
+        mode=MODE,
+        train_prop=TRAIN_PROP,
+        val_prop=VAL_PROP,
         batch_size=BATCH_SIZE,
-        num_workers=int(os.cpu_count() // AVAIL_GPUS * NGPUS),
+        # There appears to be memory leaks when num_workers > 1
+        # cf. https://github.com/pyg-team/pytorch_geometric/issues/3396
+        # setting `num_workers` to 1 solves the issue
+        num_workers=1,
     )
     dm.setup()
 
@@ -48,14 +57,14 @@ def main():
         "act": "leakyrelu",
         "in_dim": 9,  # num input atom features
         "hid_dim": HID_DIM,
-        "GAT_head_dim": 64, # 32
-        "GAT_nheads": 4, # 2
-        "GAT_nlayers": NLAYERS, # 4
+        "GAT_head_dim": 64,  # 32
+        "GAT_nheads": 4,  # 2
+        "GAT_nlayers": NLAYERS,  # 4
         "out_dim": dm.num_classes,
     }
     neptune_params = {
-        "project": "yananlong/DDIFPGraph",
-        "tags": ["SSI-DDI", "full_run"],
+        "project": "DDI/fingerprint",
+        "tags": ["SSI-DDI", "full_run", MODE],
         "description": "SSI-DDI-v2: {} GAT layers, {} * {}, full run".format(
             NLAYERS, model_params["GAT_head_dim"], model_params["GAT_nheads"]
         ),

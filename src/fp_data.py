@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 import torch
 from pytorch_lightning import LightningDataModule
+from sklearn import model_selection
 from SMILES import from_smiles
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torch_geometric.data import Data as PyGData
 from torch_geometric.data import InMemoryDataset
 from torch_geometric.loader import DataLoader as PyGDataLoader
@@ -58,26 +59,37 @@ class FPDataset(Dataset):
 
     Parameters
     ----------
-        kind (str): Fingerprinting method: morgan or pharmacophores
-        data_dir (str): Base directory for input data
-        include_neg (bool): Use neegative examples from actual prescriptions in
-            addition to the positive examples from curated databases?
+    data_dir (str): Base directory for input data
+    kind (str): Fingerprinting method: morgan or pharmacophores
+    include_neg (bool): Use negative examples from actual prescriptions in
+        addition to the positive examples from curated databases?
     """
 
     def __init__(
         self,
-        kind: str,
         data_dir: str,
-        include_neg: bool = False,
+        kind: str,
+        include_neg: bool = True,
+        **kwargs,
     ):
         super().__init__()
+        # Unpack keyword args
+        try:
+            self.radius = kwargs["radius"]
+        except KeyError:
+            self.radius = 2
+        try:
+            self.nBits = kwargs["nBits"]
+        except KeyError:
+            self.nBits = 2048
+
         # Fingerprints
         self.kind = kind
-        if kind == "morgan":
-            self.dict_in = "morgan_dict_drugbank.pkl"
-        elif kind == "pharmacophores":
+        if self.kind == "morgan":
+            self.dict_in = f"morgan{self.radius}-{self.nBits}_dict_drugbank.pkl"
+        elif self.kind == "pharmacophores":
             self.dict_in = "pharmacophore_dict.pkl"
-        elif kind == "topological":
+        elif self.kind == "topological":
             self.dict_in = "topological_dict_drugbank.pkl"
         else:
             raise ValueError("Unsupported kind of fingerprinting algorithm")
@@ -85,9 +97,11 @@ class FPDataset(Dataset):
         # Load fingerprints
         with open(osp.join(data_dir, self.dict_in), mode="rb") as f:
             print("Creating dataset, kind:", kind, flush=True)
+            if kind == "morgan":
+                print("Radius = {}, #bits = {}".format(self.radius, self.nBits))
             self.fp_dict = pickle.load(f)
         self.ndim = next(iter(self.fp_dict.items()))[1].shape[0]  # input dimensions
-        dbids_with_fps = list(self.fp_dict.keys())
+        self.dbids_with_fps = list(self.fp_dict.keys())
 
         # DDI pairs
         self.include_neg = include_neg
@@ -98,7 +112,8 @@ class FPDataset(Dataset):
             .reset_index(drop=True)
         )
         df_ddi = df_ddi[
-            df_ddi["Drug1"].isin(dbids_with_fps) & df_ddi["Drug2"].isin(dbids_with_fps)
+            df_ddi["Drug1"].isin(self.dbids_with_fps)
+            & df_ddi["Drug2"].isin(self.dbids_with_fps)
         ]
         self.original_df_ddi = df_ddi.copy()
         self.original_ids = pd.unique(df_ddi[["ID"]].values.ravel("K"))
@@ -118,6 +133,7 @@ class FPDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df_ddi.iloc[idx]
+        # row = self.df_ddi.loc[idx]
         dbid1, dbid2, ID = row
 
         fp1 = torch.FloatTensor(self.fp_dict[dbid1])
@@ -132,57 +148,147 @@ class FPDataModule(LightningDataModule):
 
     Parameters
     ----------
-        kind (str): Fingerprinting method: morgan or pharmacophores
-        data_dir (str): Base directory for input data
-        include_neg (bool): Use neegative examples from actual prescriptions in
-            addition to the positive examples from curated databases?
-        batch_size (int): Batch size
+    data_dir (str): Base directory for input data
+    kind (str): Fingerprinting method: morgan or pharmacophores
+    include_neg (bool): Use negative examples from actual prescriptions in
+        addition to the positive examples from curated databases?
+    mode (str): transductive or inductive training mode?
+    train_prop (np.float32): Under the transductive setting, the proportion of training
+    examples as a fraction of *all* data points; under inductive settings number of
+    drugs seen during train/validation
+    val_prop (np.float32): Proportion of validation examples as a fraction of the
+        *remaining* data points; see notes below for behaviour under the different
+        settings
+    batch_size (int): Batch size
+    num_workers (int): Number of processes for data loading
+
+    Notes
+    -----
+    For inductive settings: in contrast to the transductive setting, here we first
+    generate the train/validation samples (i.e. those with the seen drugs) which are
+    then split according to `val_prop`. The test set is generated based on how many
+    drugs to be held unseen in the previous phases: inductive1 = 1 seen + 1 unseen,
+    inductive2 = 2 unseen
     """
 
     def __init__(
         self,
-        kind: str,
         data_dir: str,
-        include_neg: bool = False,
-        train_prop=0.8,
-        val_prop=0.5,
+        kind: str = "morgan",
+        include_neg: bool = True,
+        mode: str = "transductive",
+        train_prop: np.float32 = 0.8,
+        val_prop: np.float32 = 0.5,
         batch_size: int = 256,
         num_workers: int = cpu_count(),
+        **kwargs,
     ):
         super().__init__()
-        self.kind = kind
         self.data_dir = data_dir
+        self.kind = kind
         self.include_neg = include_neg
+        self.mode = mode
         self.train_prop = train_prop
         self.val_prop = val_prop
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.fpargs = kwargs
 
     def prepare_data(self):
         pass
 
     def setup(self, stage=None):
         # Create dataset
-        self.ds_full = FPDataset(self.kind, self.data_dir, self.include_neg)
+        self.ds_full = FPDataset(
+            self.data_dir, self.kind, self.include_neg, **self.fpargs
+        )
         self.num_classes = self.ds_full.num_classes
         self.ndim = self.ds_full.ndim
         self.dim = (self.ndim, self.num_classes)
         self.nsamples = len(self.ds_full)
 
         # Train/val/test split
-        self.ntrain = np.int32(self.nsamples * self.train_prop)
-        self.nval_test = self.nsamples - self.ntrain
-        self.nval = np.int32(self.nval_test * self.val_prop)
-        self.ntest = self.nval_test - self.nval
-        self.train, self.val, self.test = random_split(
-            self.ds_full,
-            [self.ntrain, self.nval, self.ntest],
-            # generator=torch.Generator().manual_seed(2022),
-        )
+        if self.mode == "transductive":
+            self.ntrain = np.int32(self.nsamples * self.train_prop)
+            self.nval_test = self.nsamples - self.ntrain
+            self.nval = np.int32(self.nval_test * self.val_prop)
+            self.ntest = self.nval_test - self.nval
+            # `random_split` recodes the indices from 0 to n - 1
+            # have to use iloc above and convert to iloc for inductive below
+            self.train, self.val, self.test = random_split(
+                self.ds_full,
+                [self.ntrain, self.nval, self.ntest],
+            )
+        elif self.mode in ["inductive1", "inductive2"]:
+            # Train/val sets
+            self.all_drug_ids = np.array(
+                list(
+                    set(self.ds_full.df_ddi["Drug1"].unique()).union(
+                        set(self.ds_full.df_ddi["Drug2"].unique())
+                    )
+                )
+            )
+            self.seen_drug_ids = np.random.choice(
+                a=self.all_drug_ids,
+                size=np.int32(len(self.all_drug_ids) * self.train_prop),
+                replace=False,
+            )
+            self.ds_full.df_ddi_seen = self.ds_full.df_ddi[
+                np.logical_and(
+                    self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                    self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                )
+            ]
+            (
+                self.ds_full.df_train,
+                self.ds_full.df_val,
+            ) = model_selection.train_test_split(
+                self.ds_full.df_ddi_seen, train_size=(1 - self.val_prop)
+            )
+            # Need to convert back to iloc index
+            self.train = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_train.index)
+            )
+            self.val = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_val.index)
+            )
+            self.ntrain = len(self.train)
+            self.nval = len(self.val)
+
+            # Test set: generate according to the two settings
+            if self.mode == "inductive1":
+                self.ds_full.df_ddi_ind = self.ds_full.df_ddi[
+                    np.logical_xor(
+                        self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                        self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                    )
+                ]
+            elif self.mode == "inductive2":
+                self.ds_full.df_ddi_ind = self.ds_full.df_ddi[
+                    np.logical_and(
+                        ~self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                        ~self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                    )
+                ]
+            # Need to convert back to iloc index
+            self.test = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_ddi_ind.index)
+            )
+            self.ntest = len(self.test)
+
+        else:
+            raise ValueError("Invalid mode.")
+
+        # Done! Print message
         print(
+            "Setting: {}.".format(self.mode),
             "Total #samples {}, #train {}, #validation {}, #test {}".format(
                 self.nsamples, self.ntrain, self.nval, self.ntest
-            )
+            ),
+            sep=" ",
         )
 
     def train_dataloader(self):
@@ -214,7 +320,7 @@ class FPDataModule(LightningDataModule):
             pin_memory=True,
             persistent_workers=True,
         )
-    
+
     def predict_dataloader(self):
         return DataLoader(
             self.test,
@@ -233,10 +339,10 @@ class FPGraphDataset(InMemoryDataset):
 
     Parameters
     ----------
-        kind (str): Fingerprinting method: morgan or pharmacophores
-        data_dir (str): Base directory for input data
-        include_neg (bool): Use neegative examples from actual prescriptions in
-            addition to the positive examples from curated databases?
+    kind (str): Fingerprinting method: morgan or pharmacophores
+    data_dir (str): Base directory for input data
+    include_neg (bool): Use negative examples from actual prescriptions in
+        addition to the positive examples from curated databases?
     """
 
     def __init__(
@@ -244,10 +350,11 @@ class FPGraphDataset(InMemoryDataset):
         root: str,
         kind: str,
         data_dir: str,
-        include_neg: bool = False,
+        include_neg: bool = True,
         transform: bool = None,
         pre_transform: bool = None,
         pre_filter: bool = None,
+        **kwargs,
     ):
         self.kind = kind
         self.data_dir = data_dir
@@ -255,6 +362,66 @@ class FPGraphDataset(InMemoryDataset):
         super().__init__(root, transform, pre_transform, pre_filter)
         self.data, self.slices = torch.load(self.processed_paths[0])
         self.ndim = self.data.fp1.shape[1]
+        
+        # Unpack keyword args
+        try:
+            self.radius = kwargs["radius"]
+        except KeyError:
+            self.radius = 2
+        try:
+            self.nBits = kwargs["nBits"]
+        except KeyError:
+            self.nBits = 2048
+        
+        # Refactored from `process`
+        # Fingerprints
+        if self.kind == "morgan":
+            self.dict_in = f"morgan{self.radius}-{self.nBits}_dict_drugbank.pkl"
+        elif self.kind == "pharmacophores":
+            self.dict_in = "pharmacophore_dict.pkl"
+        elif self.kind == "topological":
+            self.dict_in = "topological_dict_drugbank.pkl"
+        else:
+            raise ValueError("Unsupported kind of fingerprinting algorithm")
+
+        # Load fingerprints
+        with open(osp.join(self.data_dir, self.dict_in), mode="rb") as f:
+            print("Loading fingerprints of kind:", self.kind, flush=True)
+            self.fp_dict = pickle.load(f)
+        self.dbids_with_fps = list(self.fp_dict.keys())
+
+        # SMILES
+        with open(osp.join(self.data_dir, "dbid_smiles.json"), mode="r") as f:
+            print("Loading SMILES", flush=True)
+            self.smiles_dict = json.load(fp=f)
+        dbids_with_smiles = list(self.smiles_dict.keys())
+
+        # Load DDI pairs
+        self.ddi_in = "ddi_pos_neg_uniq.tsv" if self.include_neg else "ddi_pairs.tsv"
+        df_ddi = (
+            pd.read_table(osp.join(self.data_dir, self.ddi_in))
+            .sort_values(by="ID", ascending=True)
+            .reset_index(drop=True)
+        )
+
+        # Filter DDI pairs
+        df_ddi = df_ddi[
+            df_ddi["Drug1"].isin(self.dbids_with_fps)
+            & df_ddi["Drug2"].isin(self.dbids_with_fps)
+            & df_ddi["Drug1"].isin(dbids_with_smiles)
+            & df_ddi["Drug2"].isin(dbids_with_smiles)
+        ]
+        self.original_df_ddi = df_ddi.copy()
+        self.original_ids = pd.unique(df_ddi[["ID"]].values.ravel("K"))
+
+        # Recode ID to [0, num_classes - 1]
+        self.new_ids = (
+            df_ddi["ID"]
+            .apply(lambda val: np.argwhere(self.original_ids == val).item())
+            .to_numpy()
+        )
+        df_ddi["ID"] = self.new_ids
+        self.df_ddi = df_ddi.copy()
 
     @property
     def processed_dir(self):
@@ -301,55 +468,6 @@ class FPGraphDataset(InMemoryDataset):
         return data
 
     def process(self):
-        # Fingerprints
-        if self.kind == "morgan":
-            self.dict_in = "morgan_dict_drugbank.pkl"
-        elif self.kind == "pharmacophores":
-            self.dict_in = "pharmacophore_dict.pkl"
-        elif self.kind == "topological":
-            self.dict_in = "topological_dict_drugbank.pkl"
-        else:
-            raise ValueError("Unsupported kind of fingerprinting algorithm")
-
-        # Load fingerprints
-        with open(osp.join(self.data_dir, self.dict_in), mode="rb") as f:
-            print("Loading fingerprints of kind:", self.kind, flush=True)
-            self.fp_dict = pickle.load(f)
-        dbids_with_fps = list(self.fp_dict.keys())
-
-        # SMILES
-        with open(osp.join(self.data_dir, "dbid_smiles.json"), mode="r") as f:
-            print("Loading SMILES", flush=True)
-            self.smiles_dict = json.load(fp=f)
-        dbids_with_smiles = list(self.smiles_dict.keys())
-
-        # Load DDI pairs
-        self.ddi_in = "ddi_pos_neg_uniq.tsv" if self.include_neg else "ddi_pairs.tsv"
-        df_ddi = (
-            pd.read_table(osp.join(self.data_dir, self.ddi_in))
-            .sort_values(by="ID", ascending=True)
-            .reset_index(drop=True)
-        )
-
-        # Filter DDI pairs
-        df_ddi = df_ddi[
-            df_ddi["Drug1"].isin(dbids_with_fps)
-            & df_ddi["Drug2"].isin(dbids_with_fps)
-            & df_ddi["Drug1"].isin(dbids_with_smiles)
-            & df_ddi["Drug2"].isin(dbids_with_smiles)
-        ]
-        self.original_df_ddi = df_ddi.copy()
-        self.original_ids = pd.unique(df_ddi[["ID"]].values.ravel("K"))
-
-        # Recode ID to [0, num_classes - 1]
-        self.new_ids = (
-            df_ddi["ID"]
-            .apply(lambda val: np.argwhere(self.original_ids == val).item())
-            .to_numpy()
-        )
-        df_ddi["ID"] = self.new_ids
-        self.df_ddi = df_ddi.copy()
-
         # Make Data list
         print("Processing datalist of DDI pairs:", flush=True)
         data_list = [self._process_row(row) for row in self.df_ddi.itertuples()]
@@ -366,9 +484,10 @@ class FPGraphDataModule(LightningDataModule):
     def __init__(
         self,
         root: str,
-        kind: str,
         data_dir: str,
-        include_neg: bool = False,
+        kind: str = "morgan",
+        include_neg: bool = True,
+        mode: str = "transductive",
         train_prop=0.8,
         val_prop=0.5,
         batch_size: int = 256,
@@ -376,9 +495,10 @@ class FPGraphDataModule(LightningDataModule):
     ):
         super().__init__()
         self.root = root
-        self.kind = kind
         self.data_dir = data_dir
+        self.kind = kind
         self.include_neg = include_neg
+        self.mode = mode
         self.train_prop = train_prop
         self.val_prop = val_prop
         self.batch_size = batch_size
@@ -387,7 +507,40 @@ class FPGraphDataModule(LightningDataModule):
     def prepare_data(self):
         pass
 
+    # Original
+#     def setup(self, stage=None):
+#         self.ds_full = FPGraphDataset(
+#             root=self.root,
+#             kind=self.kind,
+#             data_dir=self.data_dir,
+#             include_neg=self.include_neg,
+#         )
+#         try:
+#             self.num_classes = max(self.ds_full.num_classes, self.ds_full.uniq_IDs)
+#         except AttributeError:
+#             self.num_classes = self.ds_full.num_classes
+#         self.ndim = self.ds_full.ndim
+#         self.dim = (self.ndim, self.num_classes)
+#         self.nsamples = len(self.ds_full)
+
+#         # Train/val/test split
+#         self.ntrain = np.int32(self.nsamples * self.train_prop)
+#         self.nval_test = self.nsamples - self.ntrain
+#         self.nval = np.int32(self.nval_test * self.val_prop)
+#         self.ntest = self.nval_test - self.nval
+#         self.train, self.val, self.test = random_split(
+#             self.ds_full,
+#             [self.ntrain, self.nval, self.ntest],
+#         )
+#         print(
+#             "Total #samples {}, #train {}, #validation {}, #test {}".format(
+#                 self.nsamples, self.ntrain, self.nval, self.ntest
+#             )
+#         )
+       
+    # New
     def setup(self, stage=None):
+        # Create dataset
         self.ds_full = FPGraphDataset(
             root=self.root,
             kind=self.kind,
@@ -403,19 +556,87 @@ class FPGraphDataModule(LightningDataModule):
         self.nsamples = len(self.ds_full)
 
         # Train/val/test split
-        self.ntrain = np.int32(self.nsamples * self.train_prop)
-        self.nval_test = self.nsamples - self.ntrain
-        self.nval = np.int32(self.nval_test * self.val_prop)
-        self.ntest = self.nval_test - self.nval
-        self.train, self.val, self.test = random_split(
-            self.ds_full,
-            [self.ntrain, self.nval, self.ntest],
-            # generator=torch.Generator().manual_seed(2022),
-        )
+        if self.mode == "transductive":
+            self.ntrain = np.int32(self.nsamples * self.train_prop)
+            self.nval_test = self.nsamples - self.ntrain
+            self.nval = np.int32(self.nval_test * self.val_prop)
+            self.ntest = self.nval_test - self.nval
+            # `random_split` recodes the indices from 0 to n - 1
+            # have to use iloc above and convert to iloc for inductive below
+            self.train, self.val, self.test = random_split(
+                self.ds_full,
+                [self.ntrain, self.nval, self.ntest],
+            )
+        elif self.mode in ["inductive1", "inductive2"]:
+            # Train/val sets
+            self.all_drug_ids = np.array(
+                list(
+                    set(self.ds_full.df_ddi["Drug1"].unique()).union(
+                        set(self.ds_full.df_ddi["Drug2"].unique())
+                    )
+                )
+            )
+            self.seen_drug_ids = np.random.choice(
+                a=self.all_drug_ids,
+                size=np.int32(len(self.all_drug_ids) * self.train_prop),
+                replace=False,
+            )
+            self.ds_full.df_ddi_seen = self.ds_full.df_ddi[
+                np.logical_and(
+                    self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                    self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                )
+            ]
+            (
+                self.ds_full.df_train,
+                self.ds_full.df_val,
+            ) = model_selection.train_test_split(
+                self.ds_full.df_ddi_seen, train_size=(1 - self.val_prop)
+            )
+            # Need to convert back to iloc index
+            self.train = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_train.index)
+            )
+            self.val = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_val.index)
+            )
+            self.ntrain = len(self.train)
+            self.nval = len(self.val)
+
+            # Test set: generate according to the two settings
+            if self.mode == "inductive1":
+                self.ds_full.df_ddi_ind = self.ds_full.df_ddi[
+                    np.logical_xor(
+                        self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                        self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                    )
+                ]
+            elif self.mode == "inductive2":
+                self.ds_full.df_ddi_ind = self.ds_full.df_ddi[
+                    np.logical_and(
+                        ~self.ds_full.df_ddi["Drug1"].isin(self.seen_drug_ids),
+                        ~self.ds_full.df_ddi["Drug2"].isin(self.seen_drug_ids),
+                    )
+                ]
+            # Need to convert back to iloc index
+            self.test = Subset(
+                self.ds_full,
+                self.ds_full.df_ddi.index.get_indexer(self.ds_full.df_ddi_ind.index)
+            )
+            self.ntest = len(self.test)
+
+        else:
+            raise ValueError("Invalid mode.")
+
+        # Done! Print message
         print(
+            "Setting: {}.".format(self.mode),
             "Total #samples {}, #train {}, #validation {}, #test {}".format(
                 self.nsamples, self.ntrain, self.nval, self.ntest
-            )
+            ),
+            sep=" ",
         )
 
     @property
@@ -455,7 +676,7 @@ class FPGraphDataModule(LightningDataModule):
             pin_memory=True,
             persistent_workers=True,
         )
-    
+
     def predict_dataloader(self):
         return PyGDataLoader(
             self.test,
