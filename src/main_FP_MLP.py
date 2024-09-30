@@ -2,39 +2,43 @@ import json
 import os
 import os.path as osp
 
-import neptune
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing
+import wandb
+import yaml
 from fp_data import FPDataModule
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.loggers import WandbLogger
 from models import FPModel
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.loggers import NeptuneLogger
 
 torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
 
+BASEDIR = "../"
+WANDB_PROJECT = "tabular_mol"
+
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-pl.seed_everything(2022, workers=True)
+pl.seed_everything(2024, workers=True)
 BASEDIR = "."
 AVAIL_GPUS = torch.cuda.device_count()
 NGPUS = 1
-BATCH_SIZE = 256 if AVAIL_GPUS else 64
-HID_DIM = 256
-NLAYERS = 4
-# DROPOUT = 0.5
-RADIUS = 2
-NBITS = 2048
+# BATCH_SIZE = 256 if AVAIL_GPUS else 64
+# HID_DIM = 256
+# NLAYERS = 4
+# # DROPOUT = 0.5
+# RADIUS = 2
+# NBITS = 2048
 MODE = "inductive1"
 TRAIN_PROP = 0.8
 VAL_PROP = 0.5
 
 
-def main():
+def train():
     # DataModule
     dm = FPDataModule(
         kind="morgan",
@@ -50,12 +54,15 @@ def main():
     )
     dm.setup()
 
-    # Hyperparameters
-    neptune_params = {
-        "project": "DDI/fingerprint",
+    Hyperparameters
+    wandb_params = {
+        "project": "yananlong/tabular_mol",
         "tags": ["Morgan", "concat_first", "full_run", MODE],
-        "description": f"Morgan{RADIUS}-{NBITS} ({NLAYERS:d}), full run",
-        "name": f"Morgan{RADIUS}-{NBITS}_{NLAYERS:d}",
+        "name": f"Morgan{radius}-{nbits}_MLP-{num_layers:d}",
+        "notes": f"""
+            Morgan FP: radius = {radius}, nbits = {nbits};
+            MLP: {num_layers:d} layer(s)
+            """,
     }
     model_params = {
         "in_dim": dm.ndim,
@@ -81,20 +88,22 @@ def main():
         "save_top_k": 1,
     }
 
-    # Logger
-    # run = neptune.init_run(mode="async", **neptune_params)
-    run = neptune.new.init(mode="async", **neptune_params)
-    neptune_logger = NeptuneLogger(run=run)
-
     # Model
     model = FPModel(**model_params)
+
+    # Logger
+    wandb_logger = WandbLogger(log_model="all")
+
+    # Callbacks
+    checkpoint_callback = ModelCheckpoint(monitor="val_accuracy", mode="max")
+    early_stopping_callback = EarlyStopping(**early_stopping_params)
 
     # Trainer
     model_checkpoint = ModelCheckpoint(**model_checkpoint_params)
     trainer = Trainer(
         # I/O
         default_root_dir=BASEDIR,
-        logger=neptune_logger,
+        logger=wandb_logger,
         # Config
         gpus=NGPUS,
         auto_select_gpus=True,
@@ -108,9 +117,24 @@ def main():
     # Training
     trainer.fit(model, dm)
     trainer.test(model, dm)
-    neptune_logger.log_model_summary(model=model, max_depth=-1)
+    # neptune_logger.log_model_summary(model=model, max_depth=-1)
     run.stop()
 
 
 if __name__ == "__main__":
-    main()
+    with open("./sweep_FP_MLP.yaml") as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    run = wandb.init(
+        project=WANDB_PROJECT,
+        config=config,
+        tags=[
+            "lightgbm",
+            "dart",
+            "baseline",
+            "binary_outcome",
+            "old_features",
+            "sleep_activity",
+        ],
+    )
+    train()
