@@ -8,8 +8,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch_geometric.nn as pyg_nn
 from pytorch_lightning import LightningModule
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from ssiddi import SSI_DDI
 from torch import nn
 from torchmetrics import AUROC, Accuracy, FBetaScore
@@ -113,7 +111,7 @@ class FPModel(LightningModule):
         self.log("train_f1_weighted", f1_w, on_step=False, on_epoch=True)
         self.log("train_loss", loss)
 
-        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+        return {"accuracy": acc, "f1_macro": f1_m, "f1_weighted": f1_w, "loss": loss}
 
     def validation_step(self, batch, batch_idx):
         d1, d2, y = batch
@@ -326,7 +324,7 @@ class GraphModel(LightningModule):
         )
         self.log("train_loss", loss)
 
-        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+        return {"accuracy": acc, "f1_macro": f1_m, "f1_weighted": f1_w, "loss": loss}
 
     def validation_step(self, batch, batch_idx):
         # Forward pass
@@ -611,7 +609,7 @@ class FPGraphModel(LightningModule):
         )
         self.log("train_loss", loss)
 
-        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+        return {"accuracy": acc, "f1_macro": f1_m, "f1_weighted": f1_w, "loss": loss}
 
     def validation_step(self, batch, batch_idx):
         # Forward pass
@@ -803,7 +801,7 @@ class SSIDDIModel(LightningModule):
         )
         self.log("train_loss", loss)
 
-        return {"accuracy": acc, "f1 macro": f1_m, "f1_weighted": f1_w, "loss": loss}
+        return {"accuracy": acc, "f1_macro": f1_m, "f1_weighted": f1_w, "loss": loss}
 
     def validation_step(self, batch, batch_idx):
         # Forward pass

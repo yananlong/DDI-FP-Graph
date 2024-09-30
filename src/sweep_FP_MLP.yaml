@@ -1,0 +1,51 @@
+program: main_FP_MLP.py
+command:
+    - /home/yananlong/apps/miniconda3/envs/torch/bin/python
+    - ${program}
+    - ${args_no_boolean_flags}
+method: random
+metric:
+    name: f1_weighted
+    goal: maximize
+parameters:
+    # Modelling
+    batch_size:
+        distribution: categorical
+        values:
+            - 256
+            - 512
+            - 1024
+    hid_dim:
+        distribution: categorical
+        values:
+            - 16
+            - 32
+            - 64
+            - 128
+            - 256
+            - 512
+            - 1024
+    num_layers:
+        distribution: categorical
+        values:
+            - 3
+            - 4
+            - 5
+            - 6
+    dropout:
+        distribution: uniform
+        min: 0.0
+        max: 0.5
+    # Data
+    radius:
+        distribution: categorical
+        values:
+            - 2
+            - 3
+            - 4
+    nbits:
+        distribution: categorical
+        values:
+            - 2048
+            - 4096
+    
