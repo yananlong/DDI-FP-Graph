@@ -42,7 +42,7 @@ class FPGraphPairData(PyGData):
         self.edge_index2 = edge_index2
         self.y = y
 
-    # Adapted from:
+    # Cf.
     # https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html#pairs-of-graphs
     def __inc__(self, key, value, *args, **kwargs):
         if key == "edge_index1":
@@ -294,7 +294,7 @@ class FPDataModule(LightningDataModule):
     def train_dataloader(self):
         return DataLoader(
             self.train,
-            batch_size=self.batch_size,
+            batch_size=self.batch_size if self.batch_size != -1 else len(self.train),
             shuffle=True,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -304,7 +304,7 @@ class FPDataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.val,
-            batch_size=self.batch_size,
+            batch_size=self.batch_size if self.batch_size != -1 else len(self.val),
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -314,7 +314,7 @@ class FPDataModule(LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.test,
-            batch_size=self.batch_size,
+            batch_size=self.batch_size if self.batch_size != -1 else len(self.test),
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -324,8 +324,7 @@ class FPDataModule(LightningDataModule):
     def predict_dataloader(self):
         return DataLoader(
             self.test,
-            # batch_size=len(self.test),
-            batch_size=self.batch_size,
+            batch_size=self.batch_size if self.batch_size != -1 else len(self.test),
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True,
