@@ -1,0 +1,31 @@
+program: PyTorch/train.py
+method: bayes
+metric:
+  name: val_loss
+  goal: minimize
+parameters:
+  optimizer.lr:
+    min: 0.00005
+    max: 0.005
+  optimizer.weight_decay:
+    min: 0.0
+    max: 0.001
+  datamodule.batch_size:
+    values: [128, 192, 256]
+  model.dropout:
+    min: 0.0
+    max: 0.6
+  model.gnn_hid:
+    values: [128, 256, 384, 512]
+  model.attn_heads:
+    values: [2, 4, 8]
+  trainer.max_epochs:
+    values: [40, 60, 80]
+command:
+  - ${env:PYTHON}
+  - -m
+  - PyTorch.train
+  - --config
+  - PyTorch/configs/graph.yaml
+  - --model
+  - graph

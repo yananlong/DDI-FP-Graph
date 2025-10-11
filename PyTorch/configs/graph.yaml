@@ -1,0 +1,42 @@
+model_name: graph
+seed: 2023
+trainer:
+  max_epochs: 50
+  min_epochs: 5
+  accelerator: auto
+  devices: auto
+  log_every_n_steps: 50
+  accumulate_grad_batches: 1
+  deterministic: true
+  enable_checkpointing: true
+wandb:
+  project: ddi-fp-graph
+  tags:
+    - graph
+optimizer:
+  name: adamw
+  lr: 0.001
+  weight_decay: 0.0
+_datamodule_base: &datamodule
+  data_dir: Data
+  batch_size: 256
+  num_workers: 8
+  kind: morgan
+  include_neg: true
+  mode: transductive
+  train_prop: 0.8
+  val_prop: 0.5
+datamodule:
+  <<: *datamodule
+model:
+  gnn_name: GATConv
+  gnn_nlayers: 4
+  gnn_in: 9
+  gnn_hid: 256
+  dec_nlayers: 4
+  dec_hid: 256
+  attn_heads: 4
+  dropout: 0.5
+  act: leakyrelu
+  final_concat: true
+  top_k: 5
