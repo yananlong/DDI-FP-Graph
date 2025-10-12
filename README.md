@@ -10,7 +10,7 @@ Updated training pipelines for the paper [Molecular Fingerprints Are a Simple Ye
 
 ## Quickstart
 
-Install dependencies with Poetry (Python 3.10 or 3.11 is required to satisfy the TensorFlow build constraints):
+Install dependencies with Poetry (Python 3.10 through 3.12 are supported with the current TensorFlow stack):
 
 ```bash
 poetry install
