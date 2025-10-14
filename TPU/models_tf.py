@@ -76,98 +76,42 @@ class TrainingConfig:
     top_k: int = 5
 
 
-class MacroF1(tf.keras.metrics.Metric):
-    """Macro-averaged F1 score."""
+class _LogitF1Score(tf.keras.metrics.F1Score):
+    """Wrapper around ``tf.keras.metrics.F1Score`` that accepts logits."""
 
-    def __init__(self, num_classes: int, name: str = "f1_macro", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.num_classes = num_classes
-        self.tp = self.add_weight(name="tp", shape=(num_classes,), initializer="zeros")
-        self.fp = self.add_weight(name="fp", shape=(num_classes,), initializer="zeros")
-        self.fn = self.add_weight(name="fn", shape=(num_classes,), initializer="zeros")
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
-        y_pred = tf.argmax(y_pred, axis=-1, output_type=tf.int32)
-        y_true_one_hot = tf.one_hot(y_true, depth=self.num_classes)
-        y_pred_one_hot = tf.one_hot(y_pred, depth=self.num_classes)
-
-        tp = tf.reduce_sum(y_true_one_hot * y_pred_one_hot, axis=0)
-        fp = tf.reduce_sum((1.0 - y_true_one_hot) * y_pred_one_hot, axis=0)
-        fn = tf.reduce_sum(y_true_one_hot * (1.0 - y_pred_one_hot), axis=0)
-
-        if sample_weight is not None:
-            sample_weight = tf.reshape(sample_weight, [-1, 1])
-            tp *= sample_weight
-            fp *= sample_weight
-            fn *= sample_weight
-            tp = tf.reduce_sum(tp, axis=0)
-            fp = tf.reduce_sum(fp, axis=0)
-            fn = tf.reduce_sum(fn, axis=0)
-
-        self.tp.assign_add(tp)
-        self.fp.assign_add(fp)
-        self.fn.assign_add(fn)
-
-    def result(self):
-        precision = tf.math.divide_no_nan(self.tp, self.tp + self.fp)
-        recall = tf.math.divide_no_nan(self.tp, self.tp + self.fn)
-        f1 = tf.math.divide_no_nan(2.0 * precision * recall, precision + recall)
-        return tf.reduce_mean(f1)
-
-    def reset_states(self):
-        for var in (self.tp, self.fp, self.fn):
-            var.assign(tf.zeros_like(var))
-
-
-class WeightedF1(tf.keras.metrics.Metric):
-    """Support-weighted F1 score."""
-
-    def __init__(self, num_classes: int, name: str = "f1_weighted", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.num_classes = num_classes
-        self.tp = self.add_weight(name="tp", shape=(num_classes,), initializer="zeros")
-        self.fp = self.add_weight(name="fp", shape=(num_classes,), initializer="zeros")
-        self.fn = self.add_weight(name="fn", shape=(num_classes,), initializer="zeros")
-        self.support = self.add_weight(name="support", shape=(num_classes,), initializer="zeros")
+    def __init__(self, *, num_classes: int, average: str, name: str):
+        super().__init__(
+            num_classes=num_classes,
+            average=average,
+            threshold=None,
+            name=name,
+        )
+        self._num_classes = num_classes
 
     def update_state(self, y_true, y_pred, sample_weight=None):
         y_true = tf.cast(tf.reshape(y_true, [-1]), tf.int32)
-        y_pred = tf.argmax(y_pred, axis=-1, output_type=tf.int32)
-        y_true_one_hot = tf.one_hot(y_true, depth=self.num_classes)
-        y_pred_one_hot = tf.one_hot(y_pred, depth=self.num_classes)
+        y_true = tf.one_hot(y_true, depth=self._num_classes)
+        y_true = tf.cast(y_true, self.dtype)
+        y_pred = tf.cast(tf.nn.softmax(y_pred), self.dtype)
+        return super().update_state(y_true, y_pred, sample_weight)
 
-        tp = tf.reduce_sum(y_true_one_hot * y_pred_one_hot, axis=0)
-        fp = tf.reduce_sum((1.0 - y_true_one_hot) * y_pred_one_hot, axis=0)
-        fn = tf.reduce_sum(y_true_one_hot * (1.0 - y_pred_one_hot), axis=0)
-        support = tf.reduce_sum(y_true_one_hot, axis=0)
 
-        if sample_weight is not None:
-            sample_weight = tf.reshape(sample_weight, [-1, 1])
-            tp *= sample_weight
-            fp *= sample_weight
-            fn *= sample_weight
-            support *= sample_weight
-            tp = tf.reduce_sum(tp, axis=0)
-            fp = tf.reduce_sum(fp, axis=0)
-            fn = tf.reduce_sum(fn, axis=0)
-            support = tf.reduce_sum(support, axis=0)
+class MacroF1(_LogitF1Score):
+    """Macro-averaged F1 score computed via ``tf.keras.metrics.F1Score``."""
 
-        self.tp.assign_add(tp)
-        self.fp.assign_add(fp)
-        self.fn.assign_add(fn)
-        self.support.assign_add(support)
+    def __init__(self, num_classes: int):
+        super().__init__(num_classes=num_classes, average="macro", name="f1_macro")
 
-    def result(self):
-        precision = tf.math.divide_no_nan(self.tp, self.tp + self.fp)
-        recall = tf.math.divide_no_nan(self.tp, self.tp + self.fn)
-        f1 = tf.math.divide_no_nan(2.0 * precision * recall, precision + recall)
-        weights = tf.math.divide_no_nan(self.support, tf.reduce_sum(self.support))
-        return tf.reduce_sum(f1 * weights)
 
-    def reset_states(self):
-        for var in (self.tp, self.fp, self.fn, self.support):
-            var.assign(tf.zeros_like(var))
+class WeightedF1(_LogitF1Score):
+    """Support-weighted F1 score computed via ``tf.keras.metrics.F1Score``."""
+
+    def __init__(self, num_classes: int):
+        super().__init__(
+            num_classes=num_classes,
+            average="weighted",
+            name="f1_weighted",
+        )
 
 
 class MacroAUROC(tf.keras.metrics.AUC):
