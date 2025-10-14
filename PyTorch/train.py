@@ -178,6 +178,7 @@ def _build_model(
             dropout=model_cfg.dropout,
             act=model_cfg.act,
             batch_norm=model_cfg.batch_norm,
+            fusion=model_cfg.fusion,
             concat=model_cfg.concat,
             top_k=model_cfg.top_k,
             **opt_kwargs,

@@ -136,14 +136,19 @@ def build_model(spec: tfgnn.GraphTensorSpec, metadata: dict, hidden_dim: int, dr
 
     drug_a_state = tfgnn.keras.layers.Pool(node_set_name="drug_a", reduce_type="mean")(graph)
     drug_b_state = tfgnn.keras.layers.Pool(node_set_name="drug_b", reduce_type="mean")(graph)
-    fp_features = tf.concat(
-        [
-            tf.squeeze(graph.context["fp1"], axis=1),
-            tf.squeeze(graph.context["fp2"], axis=1),
-        ],
-        axis=-1,
-    )
-    x = tf.keras.layers.Concatenate()([drug_a_state, drug_b_state, fp_features])
+
+    pooled_diff = tf.math.abs(drug_a_state - drug_b_state)
+    pooled_prod = drug_a_state * drug_b_state
+    embedding_features = tf.keras.layers.Concatenate()([pooled_diff, pooled_prod])
+
+    fp1 = tf.squeeze(graph.context["fp1"], axis=1)
+    fp2 = tf.squeeze(graph.context["fp2"], axis=1)
+    fp_union = fp1 + fp2
+    fp_intersection = fp1 * fp2
+    fp_exclusive = tf.math.abs(fp1 - fp2)
+    fp_features = tf.keras.layers.Concatenate()([fp_union, fp_intersection, fp_exclusive])
+
+    x = tf.keras.layers.Concatenate()([embedding_features, fp_features])
     x = tf.keras.layers.Dense(hidden_dim, activation="relu")(x)
     x = tf.keras.layers.Dropout(dropout)(x)
     logits = tf.keras.layers.Dense(int(metadata["num_classes"]))(x)
@@ -156,7 +161,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset", type=Path, required=True, help="Path to the exported dataset directory.")
     parser.add_argument("--tpu", type=str, default=None, help="TPU name or address. Leave empty for CPU/GPU.")
     parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--hidden-dim", type=int, default=256)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
@@ -173,6 +178,10 @@ def configure_strategy(tpu: str | None) -> tf.distribute.Strategy:
 
 def main() -> None:
     args = parse_args()
+    if args.batch_size % 64 != 0:
+        raise ValueError(
+            "TPU batch size must be a multiple of 64 to satisfy per-core alignment recommendations."
+        )
     metadata = load_metadata(args.dataset / "metadata.json")
     spec = graph_tensor_spec(metadata)
 

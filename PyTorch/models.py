@@ -28,7 +28,8 @@ class FPModel(pl.LightningModule):
         dropout: float = 0.0,
         act: str = "leakyrelu",
         batch_norm: bool = False,
-        concat: str = "final",
+        fusion: str = "fingerprint_symmetric",
+        concat: str | None = None,
         top_k: int = 5,
         lr: float = 1e-3,
         weight_decay: float = 0.0,
@@ -36,7 +37,33 @@ class FPModel(pl.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["top_k"])
-        self.concat = concat
+
+        fusion_mode = fusion or ""
+        alias_map = {
+            "first": "fingerprint_concat",
+            "last": "embedding_concat",
+            "final": "embedding_sum",
+            "sum": "embedding_sum",
+        }
+        if concat:
+            # Allow legacy configs that still specify `concat` to override the fusion mode.
+            fusion_mode = alias_map.get(concat.lower(), concat.lower())
+        fusion_mode = alias_map.get(fusion_mode.lower(), fusion_mode.lower())
+
+        valid_fusions = {
+            "fingerprint_concat",
+            "fingerprint_symmetric",
+            "embedding_concat",
+            "embedding_sum",
+            "embedding_symmetric",
+        }
+        if fusion_mode not in valid_fusions:
+            raise ValueError(
+                "Unsupported fusion mode. Expected one of "
+                f"{sorted(valid_fusions)}, got '{fusion_mode}'."
+            )
+
+        self.fusion = fusion_mode
         self.lr = lr
         self.weight_decay = weight_decay
         self.optimizer_name = optimizer
@@ -56,11 +83,20 @@ class FPModel(pl.LightningModule):
         self.test_auroc = AUROC(average="macro", **metric_kwargs)
 
         # MLP
-        if self.concat == "first":
-            in_dim = 2 * in_dim
-        hid_dim_factor = 2 if self.concat == "last" else 1
+        if self.fusion == "fingerprint_concat":
+            enc_in_dim = 2 * in_dim
+        elif self.fusion == "fingerprint_symmetric":
+            enc_in_dim = 3 * in_dim
+        else:
+            enc_in_dim = in_dim
+
+        if self.fusion in {"embedding_concat", "embedding_symmetric"}:
+            dec_in_dim = 2 * hid_dim
+        else:
+            dec_in_dim = hid_dim
+
         self.enc = pyg_nn.MLP(
-            in_channels=in_dim,
+            in_channels=enc_in_dim,
             hidden_channels=hid_dim,
             out_channels=hid_dim,
             num_layers=nlayers,
@@ -69,7 +105,7 @@ class FPModel(pl.LightningModule):
             batch_norm=batch_norm,
         )
         self.dec = pyg_nn.MLP(
-            in_channels=hid_dim * hid_dim_factor,
+            in_channels=dec_in_dim,
             hidden_channels=hid_dim,
             out_channels=out_dim,
             num_layers=nlayers,
@@ -80,15 +116,26 @@ class FPModel(pl.LightningModule):
 
     def forward(self, drug1, drug2):
         # Encode
-        if self.concat == "first":
-            d = torch.cat([drug1, drug2], axis=1)
-            d = d.type_as(d)
-            d = self.enc(d)
+        if self.fusion == "fingerprint_concat":
+            fused = torch.cat([drug1, drug2], dim=1)
+            d = self.enc(fused)
+        elif self.fusion == "fingerprint_symmetric":
+            union = drug1 + drug2
+            intersection = drug1 * drug2
+            exclusive = torch.abs(drug1 - drug2)
+            fused = torch.cat([union, intersection, exclusive], dim=1)
+            d = self.enc(fused)
         else:
             d1 = self.enc(drug1)
             d2 = self.enc(drug2)
-            d = torch.cat([d1, d2], axis=1) if self.concat == "last" else d1 + d2
-            d = d.type_as(d)
+            if self.fusion == "embedding_concat":
+                d = torch.cat([d1, d2], dim=1)
+            elif self.fusion == "embedding_sum":
+                d = d1 + d2
+            elif self.fusion == "embedding_symmetric":
+                d = torch.cat([torch.abs(d1 - d2), d1 * d2], dim=1)
+            else:  # pragma: no cover - defensive
+                raise RuntimeError(f"Unsupported fusion mode '{self.fusion}'.")
 
         # Decode
         d = self.dec(d)

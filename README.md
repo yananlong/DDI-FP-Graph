@@ -6,6 +6,7 @@ Updated training pipelines for the paper [Molecular Fingerprints Are a Simple Ye
 
 - **Modern PyTorch Lightning workflows** live under [`PyTorch/`](PyTorch) with W&B integration and Bayesian sweeps, now using the unified `lightning.pytorch` API.
 - **TPU-ready TensorFlow GNN pipeline** under [`TPU/`](TPU) for converting the dataset and running on modern TPUs, updated for TensorFlow 2.15 and TF-GNN 1.0.3.
+- **Symmetric fingerprint fusion** for the baseline models on both PyTorch and TPU stacks, combining union/intersection/exclusive fingerprints and post-encoder interactions that remain invariant to swapping the drug order.
 - **Reproducible environments** via the provided [`pyproject.toml`](pyproject.toml) and [`Dockerfile`](Dockerfile).
 
 ## Quickstart
@@ -46,8 +47,10 @@ python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
 2. Train the TF-GNN model (runs on CPU/GPU by default, pass `--tpu` to target a TPU):
 
    ```bash
-   python TPU/train_tf_gnn.py --dataset tf_dataset --epochs 50 --tpu your-tpu-name
+   python TPU/train_tf_gnn.py --dataset tf_dataset --epochs 50 --batch-size 128 --tpu your-tpu-name
    ```
+
+   The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
 
 ## Docker
 
