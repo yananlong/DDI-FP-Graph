@@ -47,10 +47,12 @@ python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
 2. Train the TF-GNN model (runs on CPU/GPU by default, pass `--tpu` to target a TPU):
 
    ```bash
-   python TPU/train_tf_gnn.py --dataset tf_dataset --epochs 50 --batch-size 128 --tpu your-tpu-name
+   python TPU/train_tf_gnn.py --dataset tf_dataset --model fp_graph --epochs 50 --batch-size 128 --tpu your-tpu-name
    ```
 
    The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
+
+   Use `--model` to mirror the PyTorch experiments exactly: `fp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
 
 ## Docker
 
