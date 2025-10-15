@@ -122,6 +122,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _instantiate_datamodule(name: str, cfg: DataModuleConfig) -> FPDataModule | FPGraphDataModule:
+    fingerprint_kwargs = dict(radius=cfg.radius, nBits=cfg.nbits)
     common_kwargs = dict(
         kind=cfg.kind,
         include_neg=cfg.include_neg,
@@ -130,12 +131,17 @@ def _instantiate_datamodule(name: str, cfg: DataModuleConfig) -> FPDataModule | 
         val_prop=cfg.val_prop,
         batch_size=cfg.batch_size,
         num_workers=cfg.num_workers,
+        **fingerprint_kwargs,
     )
     if common_kwargs["num_workers"] and common_kwargs["num_workers"] > 0 and cfg.mode.startswith("inductive"):
         # Inductive splits benefit from deterministic sampling; keep worker count low.
         common_kwargs["num_workers"] = max(1, common_kwargs["num_workers"])
     if name in {"graph", "fp_graph", "ssi_ddi"}:
-        return FPGraphDataModule(root=str(cfg.data_dir), data_dir=str(cfg.data_dir), **common_kwargs)
+        return FPGraphDataModule(
+            root=str(cfg.data_dir),
+            data_dir=str(cfg.data_dir),
+            **common_kwargs,
+        )
     if name == "fp":
         return FPDataModule(data_dir=str(cfg.data_dir), **common_kwargs)
     raise ValueError(f"Unsupported model name for datamodule instantiation: {name}")

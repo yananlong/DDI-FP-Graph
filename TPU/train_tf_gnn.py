@@ -136,7 +136,7 @@ def load_split(
 
 def compile_model(model: tf.keras.Model, learning_rate: float, training_cfg: TrainingConfig) -> None:
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+        optimizer=tf.keras.optimizers.AdamW(learning_rate=learning_rate),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=list(make_metrics(training_cfg)),
     )

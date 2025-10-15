@@ -492,6 +492,8 @@ class FPGraphDataModule(pl.LightningDataModule):
         val_prop=0.5,
         batch_size: int = 256,
         num_workers: int = cpu_count(),
+        radius: int = 2,
+        nBits: int = 2048,
     ):
         super().__init__()
         self.root = root
@@ -503,6 +505,7 @@ class FPGraphDataModule(pl.LightningDataModule):
         self.val_prop = val_prop
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.fingerprint_kwargs = dict(radius=radius, nBits=nBits)
 
     def prepare_data(self):
         pass
@@ -546,6 +549,7 @@ class FPGraphDataModule(pl.LightningDataModule):
             kind=self.kind,
             data_dir=self.data_dir,
             include_neg=self.include_neg,
+            **self.fingerprint_kwargs,
         )
         try:
             self.num_classes = max(self.ds_full.num_classes, self.ds_full.uniq_IDs)

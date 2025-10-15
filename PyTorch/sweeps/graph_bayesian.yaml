@@ -12,6 +12,10 @@ parameters:
     max: 0.001
   datamodule.batch_size:
     values: [128, 192, 256]
+  datamodule.radius:
+    values: [2, 3, 4]
+  datamodule.nbits:
+    values: [1024, 2048, 4096]
   model.dropout:
     min: 0.0
     max: 0.6
