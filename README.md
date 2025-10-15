@@ -54,6 +54,14 @@ python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
 
    Use `--model` to mirror the PyTorch experiments exactly: `fp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
 
+3. Run Bayesian optimisation to tune the TensorFlow hyperparameters with W&B sweeps:
+
+   ```bash
+   python TPU/tune_tf_gnn.py --dataset tf_dataset --model fp_graph --wandb-project your-project --max-trials 40 --epochs 60
+   ```
+
+   The CLI launches a W&B Bayesian sweep that samples the encoder width, depth, dropout, activations, attention heads, decoder size, and optimiser learning rate while respecting TPU batch-size constraints. Every trial logs metrics, artefacts, and the saved model to W&B; the best run is also exported locally under `tpu_tuning/` by default.
+
 ## Docker
 
 Build and run the containerised environment:
