@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "ddi-fp-graph"
+version = "0.1.0"
+description = "Updated training pipelines for DDI-FP-Graph with PyTorch Lightning and TF-GNN support."
+authors = ["OpenAI Assistant <noreply@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [
+  { include = "PyTorch" },
+  { include = "TPU" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.24"
+pandas = "^2.0"
+scikit-learn = "^1.3"
+torch = "^2.1"
+torch-geometric = "^2.3"
+pytorch-lightning = "^2.4"
+lightning = "^2.4"
+torchmetrics = "^1.2"
+wandb = "^0.15"
+rdkit-pypi = "^2022.9"
+networkx = "^3.1"
+matplotlib = "^3.7"
+pyyaml = "^6.0"
+tqdm = "^4.66"
+tensorflow = "^2.17"
+tensorflow-gnn = "^1.0.3"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.9"
+ruff = "^0.1.6"
+
+[build-system]
+requires = ["poetry-core>=1.5.0"]
+build-backend = "poetry.core.masonry.api"
