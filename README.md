@@ -36,6 +36,8 @@ You can also launch the sweep programmatically:
 python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
 ```
 
+The sweep explores optimiser settings alongside the Morgan fingerprint radius and bit-length so the data pipeline stays in sync with the model hyperparameters.
+
 ## TPU workflow
 
 1. Export the PyTorch Geometric dataset to NumPy archives compatible with TF-GNN:
@@ -53,6 +55,14 @@ python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
    The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
 
    Use `--model` to mirror the PyTorch experiments exactly: `fp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
+
+3. Run Bayesian optimisation to tune the TensorFlow hyperparameters with W&B sweeps:
+
+   ```bash
+   python TPU/tune_tf_gnn.py --dataset tf_dataset --model fp_graph --wandb-project your-project --max-trials 40 --epochs 60
+   ```
+
+   The CLI launches a W&B Bayesian sweep that samples the encoder width, depth, dropout, activations, attention heads, decoder size, optimiser learning rate, and the fingerprint radius/bit-length. Provide `--raw-data-dir` if you want the tuner to regenerate datasets for unseen fingerprint settings on the fly. Every trial logs metrics, artefacts, and the saved model to W&B; the best run is also exported locally under `tpu_tuning/` by default.
 
 ## Docker
 

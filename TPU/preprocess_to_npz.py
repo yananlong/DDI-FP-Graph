@@ -60,6 +60,61 @@ def export_subset(name: str, subset, out_dir: Path) -> dict:
     return metadata
 
 
+def export_tf_dataset(
+    *,
+    data_dir: Path,
+    output_dir: Path,
+    kind: str,
+    mode: str,
+    train_prop: float,
+    val_prop: float,
+    batch_size: int,
+    num_workers: int,
+    radius: int,
+    n_bits: int,
+) -> dict:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    dm = FPGraphDataModule(
+        root=str(data_dir),
+        data_dir=str(data_dir),
+        kind=kind,
+        include_neg=True,
+        mode=mode,
+        train_prop=train_prop,
+        val_prop=val_prop,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        radius=radius,
+        nBits=n_bits,
+    )
+    dm.setup()
+
+    subsets = {"train": dm.train, "val": dm.val, "test": dm.test}
+    metadata = {
+        "num_classes": int(dm.num_classes),
+        "splits": {},
+        "mode": mode,
+        "kind": kind,
+        "fingerprint": {"radius": radius, "bits": n_bits},
+        "source_data_dir": str(data_dir),
+        "split_config": {"train_prop": train_prop, "val_prop": val_prop},
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+    }
+    for name, subset in subsets.items():
+        subset_meta = export_subset(name, subset, output_dir)
+        metadata["splits"][name] = subset_meta
+        metadata.setdefault("node_dim", subset_meta.get("node_dim"))
+        metadata.setdefault("edge_dim", subset_meta.get("edge_dim"))
+        metadata.setdefault("fp_dim", subset_meta.get("fp_dim"))
+
+    with (output_dir / "metadata.json").open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+
+    return metadata
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path("Data"))
@@ -70,42 +125,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-prop", type=float, default=0.5)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--radius", type=int, default=2)
+    parser.add_argument("--n-bits", type=int, default=2048)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    dm = FPGraphDataModule(
-        root=str(args.data_dir),
-        data_dir=str(args.data_dir),
+    metadata = export_tf_dataset(
+        data_dir=args.data_dir,
+        output_dir=args.output_dir,
         kind=args.kind,
-        include_neg=True,
         mode=args.mode,
         train_prop=args.train_prop,
         val_prop=args.val_prop,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        radius=args.radius,
+        n_bits=args.n_bits,
     )
-    dm.setup()
-
-    subsets = {"train": dm.train, "val": dm.val, "test": dm.test}
-    metadata = {
-        "num_classes": int(dm.num_classes),
-        "splits": {},
-        "mode": args.mode,
-        "kind": args.kind,
-    }
-    for name, subset in subsets.items():
-        subset_meta = export_subset(name, subset, args.output_dir)
-        metadata["splits"][name] = subset_meta
-        metadata.setdefault("node_dim", subset_meta.get("node_dim"))
-        metadata.setdefault("edge_dim", subset_meta.get("edge_dim"))
-        metadata.setdefault("fp_dim", subset_meta.get("fp_dim"))
-
-    with (args.output_dir / "metadata.json").open("w", encoding="utf-8") as handle:
-        json.dump(metadata, handle, indent=2)
 
     print(f"Export finished. Metadata saved to {(args.output_dir / 'metadata.json').resolve()}")
 
