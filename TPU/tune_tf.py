@@ -25,7 +25,7 @@ from .models_tf import (
     build_graph_model,
     build_ssiddi_model,
 )
-from .train_tf_gnn import (
+from .train_tf import (
     compile_model,
     configure_strategy,
     graph_tensor_spec,

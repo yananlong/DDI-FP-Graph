@@ -49,7 +49,7 @@ The sweep explores optimiser settings alongside the Morgan fingerprint radius an
 2. Train the TF-GNN model (runs on CPU/GPU by default, pass `--tpu` to target a TPU):
 
    ```bash
-   python TPU/train_tf_gnn.py --dataset tf_dataset --model fp_graph --epochs 50 --batch-size 128 --tpu your-tpu-name
+   python TPU/train_tf.py --dataset tf_dataset --model fp_graph --epochs 50 --batch-size 128 --tpu your-tpu-name
    ```
 
    The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
@@ -59,7 +59,7 @@ The sweep explores optimiser settings alongside the Morgan fingerprint radius an
 3. Run Bayesian optimisation to tune the TensorFlow hyperparameters with W&B sweeps:
 
    ```bash
-   python TPU/tune_tf_gnn.py --dataset tf_dataset --model fp_graph --wandb-project your-project --max-trials 40 --epochs 60
+   python TPU/tune_tf.py --dataset tf_dataset --model fp_graph --wandb-project your-project --max-trials 40 --epochs 60
    ```
 
    The CLI launches a W&B Bayesian sweep that samples the encoder width, depth, dropout, activations, attention heads, decoder size, optimiser learning rate, and the fingerprint radius/bit-length. Provide `--raw-data-dir` if you want the tuner to regenerate datasets for unseen fingerprint settings on the fly. Every trial logs metrics, artefacts, and the saved model to W&B; the best run is also exported locally under `tpu_tuning/` by default.
