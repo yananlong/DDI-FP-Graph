@@ -25,6 +25,12 @@ from .models_tf import (
     build_graph_model,
     build_ssiddi_model,
 )
+from .pairicl import (
+    PairICLConfig,
+    build_pairicl_support_model,
+    build_pairicl_zero_shot_model,
+)
+from .tabicl import TabICLConfig
 from .train_tf import (
     compile_model,
     configure_strategy,
@@ -92,6 +98,41 @@ def _build_decoder_from_config(config: dict[str, Any]) -> DecoderConfig:
     )
 
 
+def _build_pairicl_from_config(
+    config: dict[str, Any],
+    metadata: dict,
+) -> tuple[GraphConfig, PairICLConfig]:
+    graph_cfg = _build_graph_backbone_from_config(config, metadata)
+    tabicl_cfg = TabICLConfig(
+        fingerprint_dim=int(metadata["fp_dim"]),
+        embed_dim=int(config.get("pairicl_tabicl_hidden", config["pairicl_hidden"])),
+        row_blocks=int(config.get("pairicl_tabicl_layers", config["pairicl_layers"])),
+        activation=str(
+            config.get("pairicl_tabicl_activation", config["pairicl_activation"])
+        ),
+        dropout=float(config.get("pairicl_tabicl_dropout", config["pairicl_dropout"])),
+        projection_dim=int(
+            config.get("pairicl_tabicl_projection", config["pairicl_projection"])
+        ),
+        pretrained_path=config.get("pairicl_tabicl_weights"),
+        trainable=bool(config.get("pairicl_tabicl_trainable", False)),
+        normalise=not bool(config.get("pairicl_tabicl_no_normalize", False)),
+    )
+    pairicl_cfg = PairICLConfig(
+        tabicl=tabicl_cfg,
+        hidden_dim=int(config["pairicl_hidden"]),
+        projection_dim=int(config["pairicl_projection"]),
+        encoder_layers=int(config["pairicl_layers"]),
+        activation=str(config["pairicl_activation"]),
+        dropout=float(config["pairicl_dropout"]),
+        temperature=float(config.get("pairicl_temperature", 0.07)),
+        support_blend=float(config.get("pairicl_support_blend", 0.7)),
+        use_fingerprints=not bool(config.get("pairicl_disable_fp", False)),
+        use_graph_state=not bool(config.get("pairicl_disable_graph", False)),
+    )
+    return graph_cfg, pairicl_cfg
+
+
 def _build_model_from_config(
     model_type: str,
     config: dict[str, Any],
@@ -125,6 +166,14 @@ def _build_model_from_config(
         att_dim = int(config["ssiddi_att_dim"])
         return build_ssiddi_model(spec, graph_cfg, training_cfg, att_dim=att_dim)
 
+    if model_type == "pairicl_zero":
+        graph_cfg, pairicl_cfg = _build_pairicl_from_config(config, metadata)
+        return build_pairicl_zero_shot_model(spec, graph_cfg, pairicl_cfg, training_cfg)
+
+    if model_type == "pairicl_support":
+        graph_cfg, pairicl_cfg = _build_pairicl_from_config(config, metadata)
+        return build_pairicl_support_model(spec, graph_cfg, pairicl_cfg, training_cfg)
+
     raise ValueError(f"Unsupported model type '{model_type}'.")
 
 
@@ -138,7 +187,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        choices=["fp", "graph", "fp_graph", "ssiddi"],
+        choices=[
+            "fp",
+            "graph",
+            "fp_graph",
+            "ssiddi",
+            "pairicl_zero",
+            "pairicl_support",
+        ],
         default="fp_graph",
         help="Model family to optimise.",
     )
@@ -190,6 +246,12 @@ def parse_args() -> argparse.Namespace:
         help="Optional path to the raw PyTorch dataset for regenerating new fingerprint combinations.",
     )
     parser.add_argument(
+        "--pairicl-support-size",
+        type=int,
+        default=None,
+        help="Override the expected PairICL support set size for all trials.",
+    )
+    parser.add_argument(
         "--fp-radius-options",
         type=int,
         nargs="+",
@@ -229,6 +291,16 @@ def _sweep_parameters(radius_choices: list[int], bit_choices: list[int]) -> dict
         "dec_dropout": {"distribution": "q_uniform", "min": 0.0, "max": 0.6, "q": 0.1},
         "dec_activation": {"values": _ACTIVATIONS},
         "ssiddi_att_dim": {"distribution": "int_uniform", "min": 128, "max": 512, "step": 64},
+        "pairicl_hidden": {"distribution": "int_uniform", "min": 128, "max": 512, "step": 64},
+        "pairicl_projection": {"distribution": "int_uniform", "min": 64, "max": 256, "step": 32},
+        "pairicl_layers": {"distribution": "int_uniform", "min": 1, "max": 4},
+        "pairicl_dropout": {"distribution": "q_uniform", "min": 0.0, "max": 0.5, "q": 0.1},
+        "pairicl_activation": {"values": _ACTIVATIONS},
+        "pairicl_temperature": {"distribution": "log_uniform", "min": 0.01, "max": 0.5},
+        "pairicl_support_blend": {"distribution": "q_uniform", "min": 0.0, "max": 1.0, "q": 0.1},
+        "pairicl_disable_fp": {"values": [False, True]},
+        "pairicl_disable_graph": {"values": [False, True]},
+        "pairicl_support_size": {"values": [0, 4, 8, 12, 16]},
     }
 
 
@@ -288,7 +360,7 @@ def main() -> None:
     args.output.mkdir(parents=True, exist_ok=True)
 
     dataset_metadata_cache: dict[tuple[int, int], dict[str, Any]] = {}
-    dataset_spec_cache: dict[tuple[int, int], tfgnn.GraphTensorSpec] = {}
+    dataset_spec_cache: dict[tuple[int, int, int | None], tfgnn.GraphTensorSpec] = {}
 
     def _dataset_dir_for(radius: int, bits: int) -> Path:
         if radius == base_radius and bits == base_bits:
@@ -360,6 +432,7 @@ def main() -> None:
                 "batch_size": args.batch_size,
                 "model": args.model,
                 "top_k": args.top_k,
+                "pairicl_support_size": args.pairicl_support_size,
             },
         )
         assert run is not None
@@ -380,10 +453,21 @@ def main() -> None:
                 )
             )
 
-        key = (radius, bits)
+        support_size = args.pairicl_support_size
+        sweep_support_size = sweep_cfg.get("pairicl_support_size")
+        if sweep_support_size is not None:
+            support_size = int(sweep_support_size)
+        if support_size is None:
+            meta_support = metadata.get("support_size")
+            if meta_support is not None:
+                support_size = int(meta_support)
+        if support_size is not None and support_size <= 0:
+            support_size = None
+
+        key = (radius, bits, support_size)
         spec = dataset_spec_cache.get(key)
         if spec is None:
-            spec = graph_tensor_spec(metadata)
+            spec = graph_tensor_spec(metadata, support_size=support_size)
             dataset_spec_cache[key] = spec
 
         train_ds = load_split(dataset_dir / "train", spec, shuffle=True, batch_size=args.batch_size)
