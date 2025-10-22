@@ -1,9 +1,9 @@
 import pytest
-import torch
 
+torch = pytest.importorskip("torch")
 pytest.importorskip("torch_geometric")
 
-from PyTorch.models import FPModel
+from GPU.models import FP_MLP
 
 
 def _make_binary(batch: int, dim: int) -> torch.Tensor:
@@ -11,7 +11,7 @@ def _make_binary(batch: int, dim: int) -> torch.Tensor:
 
 
 def test_fingerprint_symmetric_is_order_invariant():
-    model = FPModel(
+    model = FP_MLP(
         in_dim=16,
         hid_dim=8,
         out_dim=3,
@@ -32,7 +32,7 @@ def test_fingerprint_symmetric_is_order_invariant():
 
 
 def test_embedding_symmetric_is_order_invariant():
-    model = FPModel(
+    model = FP_MLP(
         in_dim=16,
         hid_dim=8,
         out_dim=3,
@@ -59,7 +59,7 @@ def test_legacy_concat_aliases_map_to_expected_modes():
         "final": "embedding_sum",
     }
     for alias, expected in aliases.items():
-        model = FPModel(
+        model = FP_MLP(
             in_dim=16,
             hid_dim=8,
             out_dim=3,

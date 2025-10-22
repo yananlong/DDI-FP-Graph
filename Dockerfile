@@ -21,5 +21,5 @@ RUN poetry install --no-interaction --no-ansi --no-root
 
 COPY . .
 
-ENTRYPOINT ["python", "-m", "PyTorch.train"]
-CMD ["--config", "PyTorch/configs/graph.yaml"]
+ENTRYPOINT ["python", "-m", "GPU.train"]
+CMD ["--config", "GPU/configs/graph.yaml"]
