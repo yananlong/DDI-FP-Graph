@@ -38,6 +38,21 @@ python GPU/sweeps/run_graph_sweep.py --entity <your-entity>
 
 The sweep explores optimiser settings alongside the Morgan fingerprint radius and bit-length so the data pipeline stays in sync with the model hyperparameters.
 
+To tune the fingerprint models, dedicated sweeps cover each gradient-boosting estimator:
+
+```bash
+# CatBoost search across depth, learning-rate, iterations, and regularisation.
+wandb sweep GPU/sweeps/fp_catboost_bayesian.yaml
+
+# LightGBM search for tree shape, learning-rate, and sampling ratios.
+wandb sweep GPU/sweeps/fp_lightgbm_bayesian.yaml
+
+# XGBoost search over depth, shrinkage, sampling, and regularisation.
+wandb sweep GPU/sweeps/fp_xgboost_bayesian.yaml
+```
+
+Each configuration keeps the fingerprint radius/bit-length coupled with the estimator-specific hyperparameters so Bayesian optimisation can explore compatible data/feature settings for the selected model (`--model` is fixed by the sweep command).
+
 ## TPU workflow
 
 1. Export the PyTorch Geometric dataset to NumPy archives compatible with TF-GNN:
