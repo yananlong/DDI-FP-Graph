@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable
 
 import numpy as np
 import torch
@@ -36,7 +36,6 @@ class FPMLP(pl.LightningModule):
         act: str = "leakyrelu",
         batch_norm: bool = False,
         fusion: str = "fingerprint_symmetric",
-        concat: str | None = None,
         top_k: int = 5,
         lr: float = 1e-3,
         weight_decay: float = 0.0,
@@ -45,17 +44,7 @@ class FPMLP(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["top_k"])
 
-        fusion_mode = fusion or ""
-        alias_map = {
-            "first": "fingerprint_concat",
-            "last": "embedding_concat",
-            "final": "embedding_sum",
-            "sum": "embedding_sum",
-        }
-        if concat:
-            # Allow legacy configs that still specify `concat` to override the fusion mode.
-            fusion_mode = alias_map.get(concat.lower(), concat.lower())
-        fusion_mode = alias_map.get(fusion_mode.lower(), fusion_mode.lower())
+        fusion_mode = (fusion or "").lower()
 
         valid_fusions = {
             "fingerprint_concat",
@@ -952,12 +941,3 @@ class SSIDDIModel(pl.LightningModule):
         return {"y": y, "ypreds": ypreds}
 
 
-# Backwards compatible aliases for legacy imports
-FP_MLP = FPMLP
-FPModel = FPMLP
-FP_CatBoost = FPCatBoostModel
-FPCatBoost = FPCatBoostModel
-FP_LightGBM = FPLightGBMModel
-FPLightGBM = FPLightGBMModel
-FP_XGBoost = FPXGBoostModel
-FPXGBoost = FPXGBoostModel

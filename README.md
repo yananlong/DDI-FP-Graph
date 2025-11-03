@@ -69,7 +69,7 @@ Each configuration keeps the fingerprint radius/bit-length coupled with the esti
 
    The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
 
-   Use `--model` to mirror the PyTorch experiments exactly: `fp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
+   Use `--model` to mirror the PyTorch experiments exactly: `fp_mlp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
 
 3. Run Bayesian optimisation to tune the TensorFlow hyperparameters with W&B sweeps:
 

@@ -49,7 +49,6 @@ MODEL_REGISTRY = {
     "fp_graph": FPGraphModel,
     "ssi_ddi": SSIDDIModel,
 }
-MODEL_REGISTRY["fp"] = MODEL_REGISTRY["fp_mlp"]
 
 MODEL_CONFIGS = {
     "graph": GraphModelConfig,
@@ -60,7 +59,6 @@ MODEL_CONFIGS = {
     "fp_graph": FingerprintGraphModelConfig,
     "ssi_ddi": SSIDDIModelConfig,
 }
-MODEL_CONFIGS["fp"] = MODEL_CONFIGS["fp_mlp"]
 
 
 def _resolve_gnn_layer(name: str) -> type[pyg_nn.MessagePassing]:
@@ -161,7 +159,7 @@ def _instantiate_datamodule(name: str, cfg: DataModuleConfig) -> FPDataModule | 
             data_dir=str(cfg.data_dir),
             **common_kwargs,
         )
-    fingerprint_models = {"fp", "fp_mlp", "fp_catboost", "fp_lightgbm", "fp_xgboost"}
+    fingerprint_models = {"fp_mlp", "fp_catboost", "fp_lightgbm", "fp_xgboost"}
     if name in fingerprint_models:
         return FPDataModule(data_dir=str(cfg.data_dir), **common_kwargs)
     raise ValueError(f"Unsupported model name for datamodule instantiation: {name}")
@@ -172,13 +170,15 @@ def _build_model(
     cfg: ExperimentConfig,
     dm: FPDataModule | FPGraphDataModule,
 ) -> pl.LightningModule:
-    normalized_name = "fp_mlp" if name == "fp" else name
-    model_cfg_cls = MODEL_CONFIGS[normalized_name]
+    try:
+        model_cfg_cls = MODEL_CONFIGS[name]
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise ValueError(f"Unknown model name: {name}") from exc
     model_cfg = model_cfg_cls(**cfg.model)
     optimizer_name = cfg.optimizer.name
     opt_kwargs = dict(lr=cfg.optimizer.lr, weight_decay=cfg.optimizer.weight_decay, optimizer=optimizer_name)
 
-    if normalized_name == "graph":
+    if name == "graph":
         gnn_layer = _resolve_gnn_layer(model_cfg.gnn_name)
         return GraphModel(
             batch_size=cfg.datamodule.batch_size,
@@ -196,7 +196,7 @@ def _build_model(
             top_k=model_cfg.top_k,
             **opt_kwargs,
         )
-    if normalized_name == "fp_mlp":
+    if name == "fp_mlp":
         return FPMLP(
             in_dim=dm.ndim,
             hid_dim=model_cfg.hid_dim,
@@ -206,11 +206,10 @@ def _build_model(
             act=model_cfg.act,
             batch_norm=model_cfg.batch_norm,
             fusion=model_cfg.fusion,
-            concat=model_cfg.concat,
             top_k=model_cfg.top_k,
             **opt_kwargs,
         )
-    if normalized_name == "fp_catboost":
+    if name == "fp_catboost":
         return FPCatBoostModel(
             out_dim=dm.num_classes,
             fusion=model_cfg.fusion,
@@ -225,7 +224,7 @@ def _build_model(
             estimator_kwargs=model_cfg.extra_params,
             device=model_cfg.device,
         )
-    if normalized_name == "fp_lightgbm":
+    if name == "fp_lightgbm":
         return FPLightGBMModel(
             out_dim=dm.num_classes,
             fusion=model_cfg.fusion,
@@ -242,7 +241,7 @@ def _build_model(
             estimator_kwargs=model_cfg.extra_params,
             device=model_cfg.device,
         )
-    if normalized_name == "fp_xgboost":
+    if name == "fp_xgboost":
         return FPXGBoostModel(
             out_dim=dm.num_classes,
             fusion=model_cfg.fusion,
@@ -260,7 +259,7 @@ def _build_model(
             estimator_kwargs=model_cfg.extra_params,
             device=model_cfg.device,
         )
-    if normalized_name == "fp_graph":
+    if name == "fp_graph":
         gnn_layer = _resolve_gnn_layer(model_cfg.gnn_name)
         return FPGraphModel(
             batch_size=cfg.datamodule.batch_size,

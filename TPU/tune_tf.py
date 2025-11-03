@@ -99,7 +99,7 @@ def _build_model_from_config(
     metadata: dict,
     training_cfg: TrainingConfig,
 ) -> tf.keras.Model:
-    if model_type == "fp":
+    if model_type == "fp_mlp":
         return _build_fp_model_from_config(config, spec, metadata, training_cfg)
 
     graph_cfg = _build_graph_backbone_from_config(config, metadata)
@@ -138,7 +138,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model",
-        choices=["fp", "graph", "fp_graph", "ssiddi"],
+        choices=["fp_mlp", "graph", "fp_graph", "ssiddi"],
         default="fp_graph",
         help="Model family to optimise.",
     )

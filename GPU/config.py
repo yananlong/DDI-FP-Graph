@@ -81,16 +81,6 @@ class FingerprintMLPConfig:
     fusion: str = "fingerprint_symmetric"
     batch_norm: bool = False
     top_k: int = 5
-    concat: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.concat is not None and self.fusion == "fingerprint_symmetric":
-            # Legacy configs may only specify `concat`; mirror that selection in fusion.
-            self.fusion = self.concat
-
-
-# Backwards compatible alias for legacy imports
-FingerprintModelConfig = FingerprintMLPConfig
 
 
 @dataclass

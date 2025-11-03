@@ -49,11 +49,7 @@ class BaseFingerprintGBDT(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["estimator_kwargs"])
 
-        alias_map = {
-            "first": "fingerprint_concat",
-            "concat": "fingerprint_concat",
-        }
-        fusion_mode = alias_map.get(fusion.lower(), fusion.lower())
+        fusion_mode = (fusion or "").lower()
         valid_fusions = {"fingerprint_concat", "fingerprint_symmetric"}
         if fusion_mode not in valid_fusions:
             raise ValueError(
@@ -383,23 +379,9 @@ class FPXGBoostModel(BaseFingerprintGBDT):
         return XGBClassifier(**params)
 
 
-# Legacy aliases -----------------------------------------------------------------
-FP_CatBoost = FPCatBoostModel
-FPCatBoost = FPCatBoostModel
-FP_LightGBM = FPLightGBMModel
-FPLightGBM = FPLightGBMModel
-FP_XGBoost = FPXGBoostModel
-FPXGBoost = FPXGBoostModel
-
 __all__ = [
     "BaseFingerprintGBDT",
     "FPCatBoostModel",
     "FPLightGBMModel",
     "FPXGBoostModel",
-    "FP_CatBoost",
-    "FPCatBoost",
-    "FP_LightGBM",
-    "FPLightGBM",
-    "FP_XGBoost",
-    "FPXGBoost",
 ]
