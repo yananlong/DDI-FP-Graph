@@ -149,7 +149,7 @@ def build_selected_model(
 ) -> Tuple[tf.keras.Model, TrainingConfig]:
     training_cfg = TrainingConfig(num_classes=int(metadata["num_classes"]), top_k=args.top_k)
 
-    if args.model == "fp":
+    if args.model == "fp_mlp":
         fp_cfg = FingerprintConfig(
             in_dim=int(metadata["fp_dim"]),
             hid_dim=args.fp_hidden,
@@ -218,7 +218,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, required=True, help="Path to the exported dataset directory.")
     parser.add_argument("--tpu", type=str, default=None, help="TPU name or address. Leave empty for CPU/GPU.")
-    parser.add_argument("--model", choices=["fp", "graph", "fp_graph", "ssiddi"], default="fp_graph")
+    parser.add_argument("--model", choices=["fp_mlp", "graph", "fp_graph", "ssiddi"], default="fp_graph")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=1e-3)

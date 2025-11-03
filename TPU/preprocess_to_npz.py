@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from PyTorch.fp_data import FPGraphDataModule
+from GPU.fp_data import FPGraphDataModule
 
 
 def _iter_subset(subset) -> Iterable:

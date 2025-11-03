@@ -4,7 +4,7 @@ Updated training pipelines for the paper [Molecular Fingerprints Are a Simple Ye
 
 ## What's new?
 
-- **Modern PyTorch Lightning workflows** live under [`PyTorch/`](PyTorch) with W&B integration and Bayesian sweeps, now using the unified `lightning.pytorch` API.
+- **Modern PyTorch Lightning workflows** live under [`GPU/`](GPU) with W&B integration and Bayesian sweeps, now using the unified `lightning.pytorch` API.
 - **TPU-ready TensorFlow GNN pipeline** under [`TPU/`](TPU) for converting the dataset and running on modern TPUs, updated for TensorFlow 2.15 and TF-GNN 1.0.3.
 - **Symmetric fingerprint fusion** for the baseline models on both PyTorch and TPU stacks, combining union/intersection/exclusive fingerprints and post-encoder interactions that remain invariant to swapping the drug order.
 - **Reproducible environments** via the provided [`pyproject.toml`](pyproject.toml) and [`Dockerfile`](Dockerfile).
@@ -20,23 +20,38 @@ poetry install
 Train a graph model with PyTorch Lightning and log to Weights & Biases:
 
 ```bash
-python -m PyTorch.train --config PyTorch/configs/graph.yaml --run-name dev-run
+python -m GPU.train --config GPU/configs/graph.yaml --run-name dev-run
 ```
 
 To use the Bayesian sweep configuration:
 
 ```bash
-wandb sweep PyTorch/sweeps/graph_bayesian.yaml
+wandb sweep GPU/sweeps/graph_bayesian.yaml
 wandb agent <entity/project>/<sweep_id>
 ```
 
 You can also launch the sweep programmatically:
 
 ```bash
-python PyTorch/sweeps/run_graph_sweep.py --entity <your-entity>
+python GPU/sweeps/run_graph_sweep.py --entity <your-entity>
 ```
 
 The sweep explores optimiser settings alongside the Morgan fingerprint radius and bit-length so the data pipeline stays in sync with the model hyperparameters.
+
+To tune the fingerprint models, dedicated sweeps cover each gradient-boosting estimator:
+
+```bash
+# CatBoost search across depth, learning-rate, iterations, bagging temperature, and regularisation strength.
+wandb sweep GBDT/sweeps/fp_catboost_bayesian.yaml
+
+# LightGBM search for tree shape, learning-rate, sampling ratios, and L1/L2 penalties.
+wandb sweep GBDT/sweeps/fp_lightgbm_bayesian.yaml
+
+# XGBoost search over depth, shrinkage, sampling, and both L1/L2 regularisation.
+wandb sweep GBDT/sweeps/fp_xgboost_bayesian.yaml
+```
+
+Each configuration keeps the fingerprint radius/bit-length coupled with the estimator-specific hyperparameters so Bayesian optimisation can explore compatible data/feature settings for the selected model (`--model` is fixed by the sweep command).
 
 ## TPU workflow
 
@@ -54,7 +69,7 @@ The sweep explores optimiser settings alongside the Morgan fingerprint radius an
 
    The trainer now validates that `--batch-size` is a multiple of 64, matching Google’s TPU performance guidelines; 128 is the default for balanced per-core workloads.
 
-   Use `--model` to mirror the PyTorch experiments exactly: `fp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
+   Use `--model` to mirror the PyTorch experiments exactly: `fp_mlp` (fingerprint MLP), `graph` (graph-only encoder), `fp_graph` (combined encoder), or `ssiddi`. All models share the same fusion modes, decoder widths, and metric suite as their Lightning counterparts, and additional knobs like `--fusion`, `--final-concat`, `--gnn-layer`, and `--top-k` match the PyTorch configuration options.
 
 3. Run Bayesian optimisation to tune the TensorFlow hyperparameters with W&B sweeps:
 
@@ -72,7 +87,7 @@ Build and run the containerised environment:
 docker build -t ddi-fp-graph .
 docker run --gpus all -it --rm \
   -v $(pwd):/workspace ddi-fp-graph \
-  --config PyTorch/configs/graph.yaml
+  --config GPU/configs/graph.yaml
 ```
 
-The container entrypoint points to `python -m PyTorch.train`, so any additional CLI flags are appended to the `docker run` command.
+The container entrypoint points to `python -m GPU.train`, so any additional CLI flags are appended to the `docker run` command.

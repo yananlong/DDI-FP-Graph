@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 import numpy as np
 import torch
@@ -15,10 +15,17 @@ from torchmetrics.classification import (
     FBetaScore,
 )
 
+from GBDT.models import (
+    BaseFingerprintGBDT,
+    FPCatBoostModel,
+    FPLightGBMModel,
+    FPXGBoostModel,
+)
+
 from .ssiddi import SSI_DDI
 
 
-class FPModel(pl.LightningModule):
+class FPMLP(pl.LightningModule):
     def __init__(
         self,
         in_dim: int,
@@ -29,7 +36,6 @@ class FPModel(pl.LightningModule):
         act: str = "leakyrelu",
         batch_norm: bool = False,
         fusion: str = "fingerprint_symmetric",
-        concat: str | None = None,
         top_k: int = 5,
         lr: float = 1e-3,
         weight_decay: float = 0.0,
@@ -38,17 +44,7 @@ class FPModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["top_k"])
 
-        fusion_mode = fusion or ""
-        alias_map = {
-            "first": "fingerprint_concat",
-            "last": "embedding_concat",
-            "final": "embedding_sum",
-            "sum": "embedding_sum",
-        }
-        if concat:
-            # Allow legacy configs that still specify `concat` to override the fusion mode.
-            fusion_mode = alias_map.get(concat.lower(), concat.lower())
-        fusion_mode = alias_map.get(fusion_mode.lower(), fusion_mode.lower())
+        fusion_mode = (fusion or "").lower()
 
         valid_fusions = {
             "fingerprint_concat",
@@ -943,3 +939,5 @@ class SSIDDIModel(pl.LightningModule):
         y = batch.y
 
         return {"y": y, "ypreds": ypreds}
+
+

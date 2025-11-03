@@ -1,8 +1,15 @@
-"""Configuration dataclasses for the PyTorch training scripts."""
+"""Configuration dataclasses for the GPU training scripts."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
+
+from GBDT.config import (
+    FingerprintGBDTConfig,
+    FPCatBoostConfig,
+    FPLightGBMConfig,
+    FPXGBoostConfig,
+)
 
 
 @dataclass
@@ -47,7 +54,7 @@ class OptimizerConfig:
 
 @dataclass
 class GraphModelConfig:
-    """Configuration for :class:`~PyTorch.models.GraphModel`."""
+    """Configuration for :class:`~GPU.models.GraphModel`."""
 
     gnn_name: str = "GATConv"
     gnn_nlayers: int = 4
@@ -63,8 +70,8 @@ class GraphModelConfig:
 
 
 @dataclass
-class FingerprintModelConfig:
-    """Configuration for :class:`~PyTorch.models.FPModel`."""
+class FingerprintMLPConfig:
+    """Configuration for :class:`~GPU.models.FPMLP`."""
 
     enc_layers: int = 4
     in_dim: int = 2048
@@ -74,12 +81,6 @@ class FingerprintModelConfig:
     fusion: str = "fingerprint_symmetric"
     batch_norm: bool = False
     top_k: int = 5
-    concat: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.concat is not None and self.fusion == "fingerprint_symmetric":
-            # Legacy configs may only specify `concat`; mirror that selection in fusion.
-            self.fusion = self.concat
 
 
 @dataclass
@@ -93,7 +94,7 @@ class FingerprintGraphModelConfig(GraphModelConfig):
 
 @dataclass
 class SSIDDIModelConfig:
-    """Configuration for :class:`~PyTorch.models.SSIDDIModel`."""
+    """Configuration for :class:`~GPU.models.SSIDDIModel`."""
 
     act: str = "leakyrelu"
     in_dim: int = 9
@@ -122,7 +123,7 @@ class DataModuleConfig:
 
 @dataclass
 class ExperimentConfig:
-    """Top-level configuration used by :mod:`PyTorch.train`."""
+    """Top-level configuration used by :mod:`GPU.train`."""
 
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)

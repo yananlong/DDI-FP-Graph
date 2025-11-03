@@ -1,9 +1,9 @@
 import pytest
-import torch
 
+torch = pytest.importorskip("torch")
 pytest.importorskip("torch_geometric")
 
-from PyTorch.models import FPModel
+from GPU.models import FPMLP
 
 
 def _make_binary(batch: int, dim: int) -> torch.Tensor:
@@ -11,7 +11,7 @@ def _make_binary(batch: int, dim: int) -> torch.Tensor:
 
 
 def test_fingerprint_symmetric_is_order_invariant():
-    model = FPModel(
+    model = FPMLP(
         in_dim=16,
         hid_dim=8,
         out_dim=3,
@@ -32,7 +32,7 @@ def test_fingerprint_symmetric_is_order_invariant():
 
 
 def test_embedding_symmetric_is_order_invariant():
-    model = FPModel(
+    model = FPMLP(
         in_dim=16,
         hid_dim=8,
         out_dim=3,
@@ -52,20 +52,13 @@ def test_embedding_symmetric_is_order_invariant():
     assert torch.allclose(logits_ab, logits_ba, atol=1e-6)
 
 
-def test_legacy_concat_aliases_map_to_expected_modes():
-    aliases = {
-        "first": "fingerprint_concat",
-        "last": "embedding_concat",
-        "final": "embedding_sum",
-    }
-    for alias, expected in aliases.items():
-        model = FPModel(
+def test_invalid_fusion_raises_value_error():
+    with pytest.raises(ValueError):
+        FPMLP(
             in_dim=16,
             hid_dim=8,
             out_dim=3,
             nlayers=1,
             dropout=0.0,
-            fusion="fingerprint_symmetric",
-            concat=alias,
+            fusion="invalid",
         )
-        assert model.fusion == expected

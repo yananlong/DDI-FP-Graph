@@ -1,4 +1,4 @@
-program: PyTorch/train.py
+program: GPU/train.py
 method: bayes
 metric:
   name: val_loss
@@ -28,8 +28,8 @@ parameters:
 command:
   - ${env:PYTHON}
   - -m
-  - PyTorch.train
+  - GPU.train
   - --config
-  - PyTorch/configs/graph.yaml
+  - GPU/configs/graph.yaml
   - --model
   - graph

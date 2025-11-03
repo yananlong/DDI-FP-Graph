@@ -17,8 +17,11 @@ from lightning.pytorch.loggers import WandbLogger
 from .config import (
     DataModuleConfig,
     ExperimentConfig,
+    FPCatBoostConfig,
+    FPXGBoostConfig,
+    FPLightGBMConfig,
     FingerprintGraphModelConfig,
-    FingerprintModelConfig,
+    FingerprintMLPConfig,
     GraphModelConfig,
     OptimizerConfig,
     SSIDDIModelConfig,
@@ -26,19 +29,33 @@ from .config import (
     WandbConfig,
 )
 from .fp_data import FPDataModule, FPGraphDataModule
-from .models import FPGraphModel, FPModel, GraphModel, SSIDDIModel
+from .models import (
+    FPGraphModel,
+    FPCatBoostModel,
+    FPLightGBMModel,
+    FPMLP,
+    FPXGBoostModel,
+    GraphModel,
+    SSIDDIModel,
+)
 
 
 MODEL_REGISTRY = {
     "graph": GraphModel,
-    "fp": FPModel,
+    "fp_mlp": FPMLP,
+    "fp_catboost": FPCatBoostModel,
+    "fp_lightgbm": FPLightGBMModel,
+    "fp_xgboost": FPXGBoostModel,
     "fp_graph": FPGraphModel,
     "ssi_ddi": SSIDDIModel,
 }
 
 MODEL_CONFIGS = {
     "graph": GraphModelConfig,
-    "fp": FingerprintModelConfig,
+    "fp_mlp": FingerprintMLPConfig,
+    "fp_catboost": FPCatBoostConfig,
+    "fp_lightgbm": FPLightGBMConfig,
+    "fp_xgboost": FPXGBoostConfig,
     "fp_graph": FingerprintGraphModelConfig,
     "ssi_ddi": SSIDDIModelConfig,
 }
@@ -142,7 +159,8 @@ def _instantiate_datamodule(name: str, cfg: DataModuleConfig) -> FPDataModule | 
             data_dir=str(cfg.data_dir),
             **common_kwargs,
         )
-    if name == "fp":
+    fingerprint_models = {"fp_mlp", "fp_catboost", "fp_lightgbm", "fp_xgboost"}
+    if name in fingerprint_models:
         return FPDataModule(data_dir=str(cfg.data_dir), **common_kwargs)
     raise ValueError(f"Unsupported model name for datamodule instantiation: {name}")
 
@@ -152,7 +170,10 @@ def _build_model(
     cfg: ExperimentConfig,
     dm: FPDataModule | FPGraphDataModule,
 ) -> pl.LightningModule:
-    model_cfg_cls = MODEL_CONFIGS[name]
+    try:
+        model_cfg_cls = MODEL_CONFIGS[name]
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise ValueError(f"Unknown model name: {name}") from exc
     model_cfg = model_cfg_cls(**cfg.model)
     optimizer_name = cfg.optimizer.name
     opt_kwargs = dict(lr=cfg.optimizer.lr, weight_decay=cfg.optimizer.weight_decay, optimizer=optimizer_name)
@@ -175,8 +196,8 @@ def _build_model(
             top_k=model_cfg.top_k,
             **opt_kwargs,
         )
-    if name == "fp":
-        return FPModel(
+    if name == "fp_mlp":
+        return FPMLP(
             in_dim=dm.ndim,
             hid_dim=model_cfg.hid_dim,
             out_dim=dm.num_classes,
@@ -185,9 +206,58 @@ def _build_model(
             act=model_cfg.act,
             batch_norm=model_cfg.batch_norm,
             fusion=model_cfg.fusion,
-            concat=model_cfg.concat,
             top_k=model_cfg.top_k,
             **opt_kwargs,
+        )
+    if name == "fp_catboost":
+        return FPCatBoostModel(
+            out_dim=dm.num_classes,
+            fusion=model_cfg.fusion,
+            top_k=model_cfg.top_k,
+            depth=model_cfg.depth,
+            learning_rate=model_cfg.learning_rate,
+            iterations=model_cfg.iterations,
+            l2_leaf_reg=model_cfg.l2_leaf_reg,
+            bagging_temperature=model_cfg.bagging_temperature,
+            random_strength=model_cfg.random_strength,
+            random_state=model_cfg.random_state,
+            estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
+        )
+    if name == "fp_lightgbm":
+        return FPLightGBMModel(
+            out_dim=dm.num_classes,
+            fusion=model_cfg.fusion,
+            top_k=model_cfg.top_k,
+            num_leaves=model_cfg.num_leaves,
+            learning_rate=model_cfg.learning_rate,
+            n_estimators=model_cfg.n_estimators,
+            subsample=model_cfg.subsample,
+            colsample_bytree=model_cfg.colsample_bytree,
+            min_child_samples=model_cfg.min_child_samples,
+            reg_alpha=model_cfg.reg_alpha,
+            reg_lambda=model_cfg.reg_lambda,
+            random_state=model_cfg.random_state,
+            estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
+        )
+    if name == "fp_xgboost":
+        return FPXGBoostModel(
+            out_dim=dm.num_classes,
+            fusion=model_cfg.fusion,
+            top_k=model_cfg.top_k,
+            max_depth=model_cfg.max_depth,
+            learning_rate=model_cfg.learning_rate,
+            n_estimators=model_cfg.n_estimators,
+            subsample=model_cfg.subsample,
+            colsample_bytree=model_cfg.colsample_bytree,
+            reg_lambda=model_cfg.reg_lambda,
+            gamma=model_cfg.gamma,
+            min_child_weight=model_cfg.min_child_weight,
+            reg_alpha=model_cfg.reg_alpha,
+            random_state=model_cfg.random_state,
+            estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
         )
     if name == "fp_graph":
         gnn_layer = _resolve_gnn_layer(model_cfg.gnn_name)

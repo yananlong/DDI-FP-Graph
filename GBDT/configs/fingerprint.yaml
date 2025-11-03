@@ -1,0 +1,34 @@
+seed: 2023
+trainer:
+  max_epochs: 1
+  min_epochs: 1
+  accelerator: auto
+  devices: auto
+  log_every_n_steps: 50
+  accumulate_grad_batches: 1
+  deterministic: true
+  enable_checkpointing: true
+wandb:
+  project: ddi-fp-graph
+  tags:
+    - fingerprint
+optimizer:
+  name: adamw
+  lr: 0.001
+  weight_decay: 0.0
+_datamodule_base: &datamodule
+  data_dir: Data
+  batch_size: 512
+  num_workers: 8
+  kind: morgan
+  include_neg: true
+  mode: transductive
+  train_prop: 0.8
+  val_prop: 0.5
+  radius: 2
+  nbits: 2048
+datamodule:
+  <<: *datamodule
+model:
+  fusion: fingerprint_symmetric
+  top_k: 5

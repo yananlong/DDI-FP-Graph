@@ -8,12 +8,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch_geometric.nn as pyg_nn
 from pytorch_lightning import LightningModule
+from GPU import models as modern_models
 from ssiddi import SSI_DDI
 from torch import nn
 from torchmetrics import AUROC, Accuracy, FBetaScore
 
 
-class FPModel(LightningModule):
+class FPMLP(LightningModule):
     def __init__(
         self,
         in_dim: int,
@@ -157,6 +158,16 @@ class FPModel(LightningModule):
         ypreds = self(d1, d2)
 
         return {"y": y, "ypreds": ypreds}
+
+
+FP_MLP = FPMLP
+FPModel = FPMLP
+FPCatBoostModel = modern_models.FPCatBoostModel
+FPLightGBMModel = modern_models.FPLightGBMModel
+FPXGBoostModel = modern_models.FPXGBoostModel
+FP_CatBoost = modern_models.FP_CatBoost
+FP_LightGBM = modern_models.FP_LightGBM
+FP_XGBoost = modern_models.FP_XGBoost
 
 
 class GraphModel(LightningModule):

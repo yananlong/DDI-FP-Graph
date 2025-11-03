@@ -14,7 +14,7 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
-from models import FPModel
+from models import FP_MLP
 
 torch.backends.cudnn.determinstic = True
 torch.backends.cudnn.benchmark = False
@@ -89,7 +89,7 @@ def train():
     }
 
     # Model
-    model = FPModel(**model_params)
+    model = FP_MLP(**model_params)
 
     # Logger
     wandb_logger = WandbLogger(log_model="all")

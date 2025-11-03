@@ -6,7 +6,8 @@ authors = ["OpenAI Assistant <noreply@example.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [
-  { include = "PyTorch" },
+  { include = "GPU" },
+  { include = "GBDT" },
   { include = "TPU" },
 ]
 
@@ -28,6 +29,9 @@ pyyaml = "^6.0"
 tqdm = "^4.66"
 tensorflow = "^2.17"
 tensorflow-gnn = "^1.0.3"
+catboost = "^1.2"
+lightgbm = "^4.5"
+xgboost = "^2.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.9"
