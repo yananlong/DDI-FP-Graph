@@ -100,6 +100,8 @@ class FPCatBoostConfig(FingerprintGBDTConfig):
     learning_rate: float = 0.1
     iterations: int = 1000
     l2_leaf_reg: float = 3.0
+    bagging_temperature: float = 1.0
+    random_strength: float = 1.0
     random_state: Optional[int] = None
 
     def build_params(self) -> Dict[str, Any]:
@@ -108,6 +110,8 @@ class FPCatBoostConfig(FingerprintGBDTConfig):
         params.setdefault("learning_rate", self.learning_rate)
         params.setdefault("iterations", self.iterations)
         params.setdefault("l2_leaf_reg", self.l2_leaf_reg)
+        params.setdefault("bagging_temperature", self.bagging_temperature)
+        params.setdefault("random_strength", self.random_strength)
         params.setdefault("loss_function", "MultiClass")
         params.setdefault("verbose", False)
         params.setdefault("allow_writing_files", False)
@@ -123,6 +127,9 @@ class FPLightGBMConfig(FingerprintGBDTConfig):
     n_estimators: int = 500
     subsample: float = 1.0
     colsample_bytree: float = 1.0
+    min_child_samples: int = 20
+    reg_alpha: float = 0.0
+    reg_lambda: float = 1.0
     random_state: Optional[int] = None
 
     def build_params(self) -> Dict[str, Any]:
@@ -133,6 +140,9 @@ class FPLightGBMConfig(FingerprintGBDTConfig):
         params.setdefault("n_estimators", self.n_estimators)
         params.setdefault("subsample", self.subsample)
         params.setdefault("colsample_bytree", self.colsample_bytree)
+        params.setdefault("min_child_samples", self.min_child_samples)
+        params.setdefault("reg_alpha", self.reg_alpha)
+        params.setdefault("reg_lambda", self.reg_lambda)
         params.setdefault("n_jobs", -1)
         if self.random_state is not None:
             params.setdefault("random_state", self.random_state)
@@ -148,6 +158,8 @@ class FPXGBoostConfig(FingerprintGBDTConfig):
     colsample_bytree: float = 1.0
     reg_lambda: float = 1.0
     gamma: float = 0.0
+    min_child_weight: float = 1.0
+    reg_alpha: float = 0.0
     random_state: Optional[int] = None
 
     def build_params(self) -> Dict[str, Any]:
@@ -159,6 +171,8 @@ class FPXGBoostConfig(FingerprintGBDTConfig):
         params.setdefault("colsample_bytree", self.colsample_bytree)
         params.setdefault("reg_lambda", self.reg_lambda)
         params.setdefault("gamma", self.gamma)
+        params.setdefault("min_child_weight", self.min_child_weight)
+        params.setdefault("reg_alpha", self.reg_alpha)
         params.setdefault("objective", "multi:softprob")
         params.setdefault("use_label_encoder", False)
         params.setdefault("tree_method", "hist")

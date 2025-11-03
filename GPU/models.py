@@ -417,6 +417,8 @@ class FPCatBoostModel(BaseFingerprintGBDT):
         learning_rate: float = 0.1,
         iterations: int = 1000,
         l2_leaf_reg: float = 3.0,
+        bagging_temperature: float = 1.0,
+        random_strength: float = 1.0,
         random_state: Optional[int] = None,
         estimator_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -425,6 +427,8 @@ class FPCatBoostModel(BaseFingerprintGBDT):
             learning_rate=learning_rate,
             iterations=iterations,
             l2_leaf_reg=l2_leaf_reg,
+            bagging_temperature=bagging_temperature,
+            random_strength=random_strength,
             loss_function="MultiClass",
             verbose=False,
             allow_writing_files=False,
@@ -459,6 +463,9 @@ class FPLightGBMModel(BaseFingerprintGBDT):
         n_estimators: int = 500,
         subsample: float = 1.0,
         colsample_bytree: float = 1.0,
+        min_child_samples: int = 20,
+        reg_alpha: float = 0.0,
+        reg_lambda: float = 1.0,
         random_state: Optional[int] = None,
         estimator_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -469,6 +476,9 @@ class FPLightGBMModel(BaseFingerprintGBDT):
             n_estimators=n_estimators,
             subsample=subsample,
             colsample_bytree=colsample_bytree,
+            min_child_samples=min_child_samples,
+            reg_alpha=reg_alpha,
+            reg_lambda=reg_lambda,
             n_jobs=-1,
         )
         if random_state is not None:
@@ -503,6 +513,8 @@ class FPXGBoostModel(BaseFingerprintGBDT):
         colsample_bytree: float = 1.0,
         reg_lambda: float = 1.0,
         gamma: float = 0.0,
+        min_child_weight: float = 1.0,
+        reg_alpha: float = 0.0,
         random_state: Optional[int] = None,
         estimator_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -514,6 +526,8 @@ class FPXGBoostModel(BaseFingerprintGBDT):
             colsample_bytree=colsample_bytree,
             reg_lambda=reg_lambda,
             gamma=gamma,
+            min_child_weight=min_child_weight,
+            reg_alpha=reg_alpha,
             objective="multi:softprob",
             use_label_encoder=False,
             tree_method="hist",

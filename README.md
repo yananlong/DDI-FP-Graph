@@ -41,13 +41,13 @@ The sweep explores optimiser settings alongside the Morgan fingerprint radius an
 To tune the fingerprint models, dedicated sweeps cover each gradient-boosting estimator:
 
 ```bash
-# CatBoost search across depth, learning-rate, iterations, and regularisation.
+# CatBoost search across depth, learning-rate, iterations, bagging temperature, and regularisation strength.
 wandb sweep GPU/sweeps/fp_catboost_bayesian.yaml
 
-# LightGBM search for tree shape, learning-rate, and sampling ratios.
+# LightGBM search for tree shape, learning-rate, sampling ratios, and L1/L2 penalties.
 wandb sweep GPU/sweeps/fp_lightgbm_bayesian.yaml
 
-# XGBoost search over depth, shrinkage, sampling, and regularisation.
+# XGBoost search over depth, shrinkage, sampling, and both L1/L2 regularisation.
 wandb sweep GPU/sweeps/fp_xgboost_bayesian.yaml
 ```
 

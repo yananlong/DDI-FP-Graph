@@ -219,6 +219,8 @@ def _build_model(
             learning_rate=model_cfg.learning_rate,
             iterations=model_cfg.iterations,
             l2_leaf_reg=model_cfg.l2_leaf_reg,
+            bagging_temperature=model_cfg.bagging_temperature,
+            random_strength=model_cfg.random_strength,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
         )
@@ -232,6 +234,9 @@ def _build_model(
             n_estimators=model_cfg.n_estimators,
             subsample=model_cfg.subsample,
             colsample_bytree=model_cfg.colsample_bytree,
+            min_child_samples=model_cfg.min_child_samples,
+            reg_alpha=model_cfg.reg_alpha,
+            reg_lambda=model_cfg.reg_lambda,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
         )
@@ -247,6 +252,8 @@ def _build_model(
             colsample_bytree=model_cfg.colsample_bytree,
             reg_lambda=model_cfg.reg_lambda,
             gamma=model_cfg.gamma,
+            min_child_weight=model_cfg.min_child_weight,
+            reg_alpha=model_cfg.reg_alpha,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
         )
