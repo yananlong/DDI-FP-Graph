@@ -223,6 +223,7 @@ def _build_model(
             random_strength=model_cfg.random_strength,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
         )
     if normalized_name == "fp_lightgbm":
         return FPLightGBMModel(
@@ -239,6 +240,7 @@ def _build_model(
             reg_lambda=model_cfg.reg_lambda,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
         )
     if normalized_name == "fp_xgboost":
         return FPXGBoostModel(
@@ -256,6 +258,7 @@ def _build_model(
             reg_alpha=model_cfg.reg_alpha,
             random_state=model_cfg.random_state,
             estimator_kwargs=model_cfg.extra_params,
+            device=model_cfg.device,
         )
     if normalized_name == "fp_graph":
         gnn_layer = _resolve_gnn_layer(model_cfg.gnn_name)

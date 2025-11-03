@@ -42,13 +42,13 @@ To tune the fingerprint models, dedicated sweeps cover each gradient-boosting es
 
 ```bash
 # CatBoost search across depth, learning-rate, iterations, bagging temperature, and regularisation strength.
-wandb sweep GPU/sweeps/fp_catboost_bayesian.yaml
+wandb sweep GBDT/sweeps/fp_catboost_bayesian.yaml
 
 # LightGBM search for tree shape, learning-rate, sampling ratios, and L1/L2 penalties.
-wandb sweep GPU/sweeps/fp_lightgbm_bayesian.yaml
+wandb sweep GBDT/sweeps/fp_lightgbm_bayesian.yaml
 
 # XGBoost search over depth, shrinkage, sampling, and both L1/L2 regularisation.
-wandb sweep GPU/sweeps/fp_xgboost_bayesian.yaml
+wandb sweep GBDT/sweeps/fp_xgboost_bayesian.yaml
 ```
 
 Each configuration keeps the fingerprint radius/bit-length coupled with the estimator-specific hyperparameters so Bayesian optimisation can explore compatible data/feature settings for the selected model (`--model` is fixed by the sweep command).
